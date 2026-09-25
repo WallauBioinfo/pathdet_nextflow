@@ -29,13 +29,22 @@ process RAPID_ANALYSIS {
         --output KK2/${sample_id}_kraken_p1.txt \
         --threads ${task.cpus} \
         ${fasta_nohit}
+   
+   # Cria os arquivos vazios APENAS se o Kraken2 não os tiver criado:
+    [ -f KK2/${sample_id}_kraken_p1.txt ] || touch KK2/${sample_id}_kraken_p1.txt
+    [ -f KK2/${sample_id}_class2.fastq ]   || touch KK2/${sample_id}_class2.fastq
+    [ -f KK2/${sample_id}_unclass2.fastq ] || touch KK2/${sample_id}_unclass2.fastq    
 
-    # 2. Geração do gráfico interativo Krona
-    ktImportTaxonomy \
-        -q 2 -t 3 -s 4 \
-        -o ${sample_id}_pRep/${sample_id}.plot.html \
-        KK2/${sample_id}_kraken_p1.txt
-
+    # 2. Geração do gráfico Krona (só roda se o arquivo tiver conteúdo / tamanho > 0)
+    if [ -s KK2/${sample_id}_kraken_p1.txt ]; then
+        ktImportTaxonomy \
+            -q 2 -t 3 -s 4 \
+            -o ${sample_id}_pRep/${sample_id}.plot.html \
+            KK2/${sample_id}_kraken_p1.txt
+    else
+        echo "<html><body><h3>Nenhum patógeno detectado (0 reads)</h3></body></html>" > ${sample_id}_pRep/${sample_id}.plot.html
+    fi
+    
     # 3. Orquestrador Python (Limpeza de dados, ete3, Pandas e Relatório Final)
     process_rapid_report.py \
         --sample-id ${sample_id} \

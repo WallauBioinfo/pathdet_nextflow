@@ -8,7 +8,7 @@ process DEHOST_KRAKEN2 {
     val kraken2_db
 
     output:
-    tuple val(sample_id), path("${sample_id}_hgs_1.fastq.gz"), path("${sample_id}_hgs_2.fastq.gz"), emit: reads
+    tuple val(sample_id), path("${sample_id}_hgs_*.fastq.gz"), emit: reads
     path "${sample_id}.kraken.txt"                                                                 , emit: report
 
     script:
@@ -16,11 +16,9 @@ process DEHOST_KRAKEN2 {
     kraken2 \
         --db ${kraken2_db} \
         --paired ${reads[0]} ${reads[1]} \
-        --unclassified-out ${sample_id}_hgs_#.fastq \
+        --unclassified-out ${sample_id}_hgs#.fastq.gz \
         --threads ${task.cpus} \
         > ${sample_id}.kraken.txt
-    
-    pigz -p ${task.cpus} ${sample_id}_hgs_1.fastq ${sample_id}_hgs_2.fastq
     """
 }
 
@@ -34,7 +32,8 @@ process DEHOST_BOWTIE2 {
     val bowtie2_index
 
     output:
-    tuple val(sample_id), path("${sample_id}_hgs2.1.fastq"), path("${sample_id}_hgs2.2.fastq"), emit: reads
+    tuple val(sample_id), path("${sample_id}_hgs2.*.fastq"), emit: reads
+
 
     script:
     """
@@ -59,7 +58,7 @@ process DEHOST_HISAT2 {
     val hisat2_index
 
     output:
-    tuple val(sample_id), path("${sample_id}_hgs.1.fastq"), path("${sample_id}_hgs.2.fastq"), emit: reads
+    tuple val(sample_id), path("${sample_id}_hgs.*.fastq"), emit: reads
 
     script:
     """

@@ -134,13 +134,22 @@ def main() -> None:
 
     if not taxid_csv_path.exists() or os.stat(taxid_csv_path).st_size == 0:
         print(f"Aviso: Arquivo {taxid_csv_path} está vazio ou não foi encontrado.", file=sys.stderr)
+        destination_fasta_path.touch()
         sys.exit(0)
 
     # 1. Carrega os Top 3 TaxIDs do arquivo de resultado do BLAST/Krona
-    top_hits_dataframe = pd.read_csv(taxid_csv_path, sep=r'\s+|,', engine='python', header=None)
+    # Usa sep=None com o motor do python para inferir automaticamente se é delimitado por TSV, CSV ou Espaço
+    top_hits_dataframe = pd.read_csv(
+        taxid_csv_path, 
+        sep=None, 
+        engine='python', 
+        header=None,
+        on_bad_lines='skip'
+    )
+    
     top_taxid_list = (
         top_hits_dataframe.iloc[:3, 1].astype(str).tolist() 
-        if len(top_hits_dataframe) > 0 
+        if not top_hits_dataframe.empty and top_hits_dataframe.shape[1] > 1 
         else []
     )
 
@@ -163,6 +172,8 @@ def main() -> None:
     # 4. Concatenação direta de bytes (I/O puro)
     if collected_fasta_paths:
         concatenate_compressed_fastas(collected_fasta_paths, destination_fasta_path)
+    else:
+        destination_fasta_path.touch()
 
 
 if __name__ == '__main__':

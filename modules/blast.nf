@@ -11,17 +11,28 @@ process SPLIT_FASTA {
 
     output:
     tuple val(sample_id), path("chunks/${sample_id}_*.fasta"), emit: chunks
-    tuple val(sample_id), path("${sample_id}_summary.txt")  , emit: summary
+    tuple val(sample_id), path("${sample_id}_summary.txt")   , emit: summary
 
     script:
     """
     mkdir -p chunks
-    python3 ${projectDir}/bin/split_fasta.py \\
+
+    split_fasta.py \\
         ${unclassified_fasta} \\
         ${params.split_size} \\
         chunks/${sample_id}_
-    
-    mv chunks/${sample_id}_summary.txt ./${sample_id}_summary.txt
+
+    # 2. Garante que exista o arquivo de summary
+    if [ -f chunks/${sample_id}_summary.txt ]; then
+        mv chunks/${sample_id}_summary.txt ./${sample_id}_summary.txt
+    else
+        touch ./${sample_id}_summary.txt
+    fi
+
+    # 3. Garante que exista pelo menos 1 chunk de FASTA para não esvaziar o canal
+    if ! ls chunks/${sample_id}_*.fasta 1> /dev/null 2>&1; then
+        touch chunks/${sample_id}_chunk_0.fasta
+    fi
     """
 }
 
