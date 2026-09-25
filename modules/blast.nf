@@ -4,7 +4,7 @@ process SPLIT_FASTA {
     tag "${sample_id}"
     label 'process_low'
 
-    publishDir "${params.out}/${sample_id}/p03_blast", mode: 'copy', pattern: "*_summary.txt"
+    publishDir "${params.out}/${sample_id}/${sample_id}_p03_blast", mode: 'copy', pattern: "*_summary.txt"
 
     input:
     tuple val(sample_id), path(unclassified_fasta)
@@ -65,7 +65,7 @@ process MERGE_AND_KRONA {
     tag "${sample_id}"
     label 'process_medium'
 
-    publishDir "${params.out}/${sample_id}/p03_blast", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_p03_blast", mode: 'copy'
 
     input:
     tuple val(sample_id), path(blast_result_files)
@@ -98,7 +98,7 @@ process PARSE_TAXID_GENOMES {
     tag "${sample_id}"
     label 'process_low'
 
-    publishDir "${params.out}/${sample_id}/p03_blast", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_p03_blast", mode: 'copy'
 
     input:
     tuple val(sample_id), path(blast_hit_file)

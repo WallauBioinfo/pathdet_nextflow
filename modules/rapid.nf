@@ -1,7 +1,7 @@
 process RAPID_ANALYSIS {
     tag "$sample_id"
     label 'process_high'
-    publishDir "${params.out}/${sample_id}/rapid", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_rapid", mode: 'copy'
 
     input:
     tuple val(sample_id), path(fasta_nohit)

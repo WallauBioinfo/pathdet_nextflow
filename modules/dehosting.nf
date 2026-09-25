@@ -1,7 +1,7 @@
 process DEHOST_KRAKEN2 {
     tag "$sample_id"
     label 'process_high'
-    publishDir "${params.out}/${sample_id}/hgs", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_hgs", mode: 'copy'
 
     input:
     tuple val(sample_id), path(reads)
@@ -25,7 +25,7 @@ process DEHOST_KRAKEN2 {
 process DEHOST_BOWTIE2 {
     tag "$sample_id"
     label 'process_high'
-    publishDir "${params.out}/${sample_id}/hgs", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_hgs", mode: 'copy'
 
     input:
     tuple val(sample_id), path(reads)
@@ -51,7 +51,7 @@ process DEHOST_BOWTIE2 {
 process DEHOST_HISAT2 {
     tag "$sample_id"
     label 'process_high'
-    publishDir "${params.out}/${sample_id}/hgs", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_hgs", mode: 'copy'
 
     input:
     tuple val(sample_id), path(reads)
@@ -76,7 +76,7 @@ process DEHOST_HISAT2 {
 process DEHOST_BLASTN {
     tag "$sample_id"
     label 'process_medium'
-    publishDir "${params.out}/${sample_id}/hgs", mode: 'copy'
+    publishDir "${params.out}/${sample_id}/${sample_id}_hgs", mode: 'copy'
 
     input:
     tuple val(sample_id), path(reads)
