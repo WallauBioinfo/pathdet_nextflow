@@ -12,7 +12,7 @@ process RAPID_ANALYSIS {
     output:
     tuple val(sample_id), path("${sample_id}_pre-report.csv"), emit: pre_report
     path "${sample_id}_pRep/${sample_id}.plot.html"           , emit: krona_html
-    path "${sample_id}_pRep/*.csv"                            , emit: rank_csvs
+    tuple val(sample_id), path("${sample_id}_pRep")           , emit: rank_csvs
     path "${sample_id}_log_Rapid.txt"                         , emit: log
 
     script:
@@ -56,5 +56,36 @@ process RAPID_ANALYSIS {
         --output-directory ${sample_id}_pRep \
         --output-report-path ${sample_id}_pre-report.csv \
         --output-log-path ${sample_id}_log_Rapid.txt
+    """
+}
+
+process GENERATE_TBL_FOLDER {
+    tag "$sample_id"
+    label 'process_low'
+
+    publishDir "${params.out}/${sample_id}/${sample_id}_tbl", mode: 'copy'
+
+    input:
+    tuple val(sample_id), path(pre_report), path(prep_dir)
+
+    output:
+    path "${sample_id}_report.csv"         , optional: true
+    path "${sample_id}_bacteria_report.csv", optional: true
+    path "${sample_id}_bRep/*"             , optional: true
+    path "${sample_id}_fRep/*"             , optional: true
+
+    script:
+    """
+    mkdir -p ${sample_id}_bRep ${sample_id}_fRep
+
+    if [ -f ${pre_report} ]; then
+        cp ${pre_report} ./${sample_id}_report.csv
+        cp ${pre_report} ./${sample_id}_bacteria_report.csv
+    fi
+
+    if [ -d ${prep_dir} ]; then
+        cp ${prep_dir}/*.csv ./${sample_id}_bRep/ 2>/dev/null || true
+        cp ${prep_dir}/*.csv ./${sample_id}_fRep/ 2>/dev/null || true
+    fi
     """
 }

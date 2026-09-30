@@ -9,7 +9,7 @@ include { DEHOST_KRAKEN2  } from './modules/dehosting.nf'
 include { DEHOST_BOWTIE2  } from './modules/dehosting.nf'
 include { DEHOST_HISAT2   } from './modules/dehosting.nf'
 include { DEHOST_BLASTN   } from './modules/dehosting.nf'
-include { RAPID_ANALYSIS  } from './modules/rapid.nf'
+include { RAPID_ANALYSIS; GENERATE_TBL_FOLDER } from './modules/rapid.nf'
 include { 
     SPLIT_FASTA; 
     RUN_BLASTN; 
@@ -50,6 +50,10 @@ workflow {
         QUALITY_CONTROL.out.log, 
         DEHOST_BLASTN.out.log, 
         params.pathdb1_db 
+    )
+
+    GENERATE_TBL_FOLDER (
+	RAPID_ANALYSIS.out.pre_report.join(RAPID_ANALYSIS.out.rank_csvs)
     )
 
     // 4. Módulo BLAST (p03_blast)

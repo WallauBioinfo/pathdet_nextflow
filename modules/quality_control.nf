@@ -41,6 +41,7 @@ process QUALITY_CONTROL {
           -w ${task.cpus}
 
     bbduk.sh \\
+	  -Xmx8g \\
           in=${sample_id}_trimmed_R1.fastq.gz \\
           in2=${sample_id}_trimmed_R2.fastq.gz \\
           out=${sample_id}_trimmed2_R1.fastq.gz \\
@@ -48,7 +49,8 @@ process QUALITY_CONTROL {
           entropy=${params.bbduk_entropy} \\
           entropywindow=${params.bbduk_entropywindow} \\
           entropyk=${params.bbduk_entropyk} \\
-          threads=${bbduk_threads}
+          threads=${bbduk_threads} \\
+          unpigz=t
     
     QC=\$(date '+%y%m%d%H%M%S')
     echo -e "\\n\${QC} ${sample_id} trimmed FQ stats" >> ${sample_id}_log_p1.txt
