@@ -10,11 +10,10 @@ include { DEHOST_BOWTIE2  } from './modules/dehosting.nf'
 include { DEHOST_HISAT2   } from './modules/dehosting.nf'
 include { DEHOST_BLASTN   } from './modules/dehosting.nf'
 include { RAPID_ANALYSIS; GENERATE_TBL_FOLDER } from './modules/rapid.nf'
-include { 
-    SPLIT_FASTA; 
-    RUN_BLASTN; 
-    MERGE_AND_KRONA; 
-    PARSE_TAXID_GENOMES 
+include {
+    SPLIT_FASTA;
+    RUN_BLASTN;
+    MERGE_AND_KRONA
 } from './modules/blast.nf'
 include {
     FETCH_REFERENCE_GENOMES;
@@ -45,39 +44,33 @@ workflow {
     DEHOST_BLASTN  ( DEHOST_HISAT2.out.reads,    params.blast_host2, QUALITY_CONTROL.out.log )
 
     // 3. Análise Rápida por k-meros (p03_rapid)
-    RAPID_ANALYSIS ( 
-        DEHOST_BLASTN.out.fasta, 
-        QUALITY_CONTROL.out.log, 
-        DEHOST_BLASTN.out.log, 
-        params.pathdb1_db 
+    RAPID_ANALYSIS (
+        DEHOST_BLASTN.out.fasta,
+        QUALITY_CONTROL.out.log,
+        DEHOST_BLASTN.out.log,
+        params.pathdb1_db
     )
 
     GENERATE_TBL_FOLDER (
-	RAPID_ANALYSIS.out.pre_report.join(RAPID_ANALYSIS.out.rank_csvs)
+        RAPID_ANALYSIS.out.pre_report.join(RAPID_ANALYSIS.out.rank_csvs)
     )
 
-    // 4. Módulo BLAST (p03_blast)
+    // 4. Módulo BLAST (p03_blast) e Krona (p04_krona)
     SPLIT_FASTA ( DEHOST_BLASTN.out.fasta )
     ch_blast_chunks = SPLIT_FASTA.out.chunks.transpose()
     RUN_BLASTN ( ch_blast_chunks )
     ch_grouped_blast = RUN_BLASTN.out.blast_output.groupTuple()
-    MERGE_AND_KRONA ( ch_grouped_blast )
-
-    PARSE_TAXID_GENOMES (
-        MERGE_AND_KRONA.out.blast_hit,
-        file(params.ncbi_lineage_tsv)
-    )
+    MERGE_AND_KRONA ( ch_grouped_blast.join(QUALITY_CONTROL.out.log) )
 
     // 5. Mapeamento, Cobertura e Chamada de Variantes (p05_map)
     FETCH_REFERENCE_GENOMES (
-        PARSE_TAXID_GENOMES.out.lineage_map,
+        MERGE_AND_KRONA.out.merge_taxid,
         file(params.ncbi_lineage_tsv),
         file(params.ncbi_genome_dir)
     )
 
-    // Cruzamento das referências geradas com as reads limpas do Quality Control
+    // Cruzamento das referências geradas com as reads limpas
     ch_align_input = FETCH_REFERENCE_GENOMES.out.ref_fasta.join(DEHOST_HISAT2.out.reads)
-
     ALIGN_AND_VARIANT_CALLING ( ch_align_input )
 }
 
@@ -86,7 +79,7 @@ workflow.onComplete {
         log.info """
           ===========================================
           ${ANSI_GREEN}Finished in ${workflow.duration}${ANSI_RESET}
-          ${params.cleanup_work_on_success ? "Work directory cleaned up (cleanup_work_on_success=true)." : "Work directory kept (cleanup_work_on_success=false)."}
+          ${params.cleanup_work_on_success ? "Work directory cleaned up (cleanup_work_on_success=true)." : "Work directory kept."}
           ===========================================
         """.stripIndent()
     } else {
@@ -98,3 +91,4 @@ workflow.onComplete {
         """.stripIndent()
     }
 }
+

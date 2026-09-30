@@ -9,7 +9,7 @@ process DEHOST_KRAKEN2 {
 
     output:
     tuple val(sample_id), path("${sample_id}_hgs_*.fastq.gz"), emit: reads
-    path "${sample_id}.kraken.txt"                                                                 , emit: report
+    path "${sample_id}.kraken.txt"                           , emit: report
 
     script:
     """
@@ -33,7 +33,6 @@ process DEHOST_BOWTIE2 {
 
     output:
     tuple val(sample_id), path("${sample_id}_hgs2.*.fastq"), emit: reads
-
 
     script:
     """
@@ -68,7 +67,7 @@ process DEHOST_HISAT2 {
         --un-conc ${sample_id}_hgs.fastq \
         -S ${sample_id}_hgs3.sam \
         -p ${task.cpus}
-    
+
     rm -f ${sample_id}_hgs3.sam
     """
 }
@@ -85,7 +84,7 @@ process DEHOST_BLASTN {
 
     output:
     tuple val(sample_id), path("${sample_id}_nohit.fasta"), emit: fasta
-    tuple val(sample_id), path("${sample_id}_log_p2.txt"),  emit: log
+    tuple val(sample_id), path("${sample_id}_log_p2.txt") , emit: log
     path "${sample_id}_hgs.txt"                           , emit: blast_out
 
     script:
@@ -104,14 +103,20 @@ process DEHOST_BLASTN {
         | grep -B 2 "# 0 hits found" \
         | grep "Query" \
         | sed -e 's/# Query: //g' \
+        | tr -d '\r' \
         > ${sample_id}_nohitID.txt
-    
-    seqkit grep -n -w0 -f ${sample_id}_nohitID.txt -o ${sample_id}_nohit.fasta ${sample_id}_hgs.1.fasta
+
+    if [ -s ${sample_id}_nohitID.txt ]; then
+        seqkit grep -n -w0 -f ${sample_id}_nohitID.txt -o ${sample_id}_nohit.fasta ${sample_id}_hgs.1.fasta
+    else
+        touch ${sample_id}_nohit.fasta
+    fi
 
     START2=\$(date '+%y%m%d%H%M%S')
     echo "\${START2} ${sample_id} trimmed FQ stats" > ${sample_id}_log_p2.txt
-    cat ${log_p1} | sed -n 7,9p >> ${sample_id}_log_p2.txt
-    echo -e "\\n\$(date '+%y%m%d%H%M%S') ${sample_id} subtracted FQ/FA stats" >> ${sample_id}_log_p2.txt
-    seqkit stats -j ${task.cpus} ${reads[0]} ${read2_param} ${sample_id}_nohit.fasta >> ${sample_id}_log_p2.txt
+    cat ${log_p1} | sed -n '7,9p' >> ${sample_id}_log_p2.txt
+    echo "" >> ${sample_id}_log_p2.txt
+    echo "\$(date '+%y%m%d%H%M%S') ${sample_id} subtracted FQ/FA stats" >> ${sample_id}_log_p2.txt
+    seqkit stats ${reads[0]} ${read2_param} ${sample_id}_nohit.fasta >> ${sample_id}_log_p2.txt
     """
 }
