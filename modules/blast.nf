@@ -1,4 +1,3 @@
-
 process SPLIT_FASTA {
     tag "${sample_id}"
     label 'process_low'
@@ -16,21 +15,22 @@ process SPLIT_FASTA {
     """
     mkdir -p chunks
 
-    split_fasta.py \\
-        ${unclassified_fasta} \\
-        ${params.split_size} \\
+    # 1. Execução do script Python
+    split_fasta.py \
+        ${unclassified_fasta} \
+        ${params.split_size} \
         chunks/${sample_id}_
 
-    # 2. Garante que exista o arquivo de summary
+    # 2. Resgate seguro do summary.txt para a raiz do diretório do processo
     if [ -f chunks/${sample_id}_summary.txt ]; then
         mv chunks/${sample_id}_summary.txt ./${sample_id}_summary.txt
     else
         touch ./${sample_id}_summary.txt
     fi
 
-    # 3. Garante que exista pelo menos 1 chunk de FASTA para não esvaziar o canal
+    # 3. Garante que exista pelo menos 1 chunk de FASTA para evitar canal vazio
     if ! ls chunks/${sample_id}_*.fasta 1> /dev/null 2>&1; then
-        touch chunks/${sample_id}_chunk_0.fasta
+        touch chunks/${sample_id}_01.fasta
     fi
     """
 }
@@ -48,14 +48,14 @@ process RUN_BLASTN {
 
     script:
     """
-    blastn \\
-        -db ${params.blast_nt} \\
-        -query ${fasta_chunk} \\
-        -out ${fasta_chunk.baseName}_blast.txt \\
-        -evalue 1.0e-10 \\
-        -max_target_seqs 1 \\
-        -max_hsps 5 \\
-        -outfmt "7 std" \\
+    blastn \
+        -db ${params.blast_nt} \
+        -query ${fasta_chunk} \
+        -out ${fasta_chunk.baseName}_blast.txt \
+        -evalue 1.0e-10 \
+        -max_target_seqs 1 \
+        -max_hsps 5 \
+        -outfmt "7 std" \
         -num_threads ${task.cpus}
     """
 }
@@ -90,22 +90,22 @@ process MERGE_AND_KRONA {
 
     cat ${blast_result_files} > ${sample_id}_blast_fmt7.txt
 
-    cat ${sample_id}_blast_fmt7.txt \\
-        | awk '/hits found/{getline;print}' \\
+    cat ${sample_id}_blast_fmt7.txt \
+        | awk '/hits found/{getline;print}' \
         | grep -v "#" > ${sample_id}_blast_hit.txt || true
 
     ktClassifyBLAST -p -s ${sample_id}_blast_hit.txt -o ${sample_id}_CSV/${sample_id}_blast.csv
     cut -f 1,2 ${sample_id}_CSV/${sample_id}_blast.csv > ${sample_id}_CSV/${sample_id}_merge.csv
 
-    ktImportTaxonomy \\
-        -m 1 -s 3 \\
-        ${sample_id}_CSV/${sample_id}_merge.csv \\
+    ktImportTaxonomy \
+        -m 1 -s 3 \
+        ${sample_id}_CSV/${sample_id}_merge.csv \
         -o ${sample_id}_pathogen_final.html
 
-    cat ${sample_id}_CSV/${sample_id}_merge.csv \\
-        | sed -e '1d' \\
-        | awk '{ tax[\$2] += \$1; } END { for (i in tax) print tax[i] "\t" i; }' \\
-        | sort -k 1nr,1 \\
+    cat ${sample_id}_CSV/${sample_id}_merge.csv \
+        | sed -e '1d' \
+        | awk '{ tax[\$2] += \$1; } END { for (i in tax) print tax[i] "\t" i; }' \
+        | sort -k 1nr,1 \
         > ${sample_id}_CSV/${sample_id}_merge_taxid.csv
 
     # Extrai a contagem de reads de R1 (coluna 5, linha 3)
@@ -119,24 +119,22 @@ process MERGE_AND_KRONA {
 
     taxonkit lineage -i 2 ${sample_id}_CSV/${sample_id}_merge.csv > ${sample_id}_CSV/${sample_id}_merge_tax.csv
 
-    cat ${sample_id}_CSV/${sample_id}_merge_tax.csv \\
-        | awk -v "r=\${TR}" '{print \$1/r*1000000"\t"\$0}' \\
-        | cut -f 1,3- \\
+    cat ${sample_id}_CSV/${sample_id}_merge_tax.csv \
+        | awk -v "r=\${TR}" '{print \$1/r*1000000"\t"\$0}' \
+        | cut -f 1,3- \
         > ${sample_id}_CSV/${sample_id}_merge_tax2.csv
 
     # Processamento de patentes taxonômicas K, P, F, G, S
     for rank in k p f g s ; do
-        # Garante a existência do arquivo temporário
         touch tmp_\${rank}.txt
 
         # Processa mf (Normalized / RPM)
-        taxonkit reformat -j ${task.cpus} -i 3 -f "{\$rank}" ${sample_id}_CSV/${sample_id}_merge_tax2.csv \\
-            | cut -f 1,4- | sed 's/ /_/g' | awk '{ tax[\$2] += \$1; } END { for (i in tax) print i "\t" tax[i]; }' \\
+        taxonkit reformat -j ${task.cpus} -i 3 -f "{\$rank}" ${sample_id}_CSV/${sample_id}_merge_tax2.csv \
+            | cut -f 1,4- | sed 's/ /_/g' | awk '{ tax[\$2] += \$1; } END { for (i in tax) print i "\t" tax[i]; }' \
             | sort -k 2nr,2 | grep -v -e '^\\s' > tmp_\${rank}.txt || true
 
-        # Calcula a Abundância Relativa (RA) se o arquivo não estiver vazio
         if [ -s tmp_\${rank}.txt ]; then
-            awk 'NR==FNR { sum += \$2; next } { p = (sum > 0 ? \$2/sum : 0); print \$0 "\t" p }' tmp_\${rank}.txt tmp_\${rank}.txt \\
+            awk 'NR==FNR { sum += \$2; next } { p = (sum > 0 ? \$2/sum : 0); print \$0 "\t" p }' tmp_\${rank}.txt tmp_\${rank}.txt \
                 > ${sample_id}_CSV2/${sample_id}_mf\${rank^^}.csv
         else
             touch ${sample_id}_CSV2/${sample_id}_mf\${rank^^}.csv
@@ -144,20 +142,18 @@ process MERGE_AND_KRONA {
         rm -f tmp_\${rank}.txt
 
         # Processa rf (Raw counts)
-        taxonkit reformat -j ${task.cpus} -i 3 -f "{\$rank}" ${sample_id}_CSV/${sample_id}_merge_tax.csv \\
-            | cut -f 1,4- | sed 's/ /_/g' | awk '{ tax[\$2] += \$1; } END { for (i in tax) print i "\t" tax[i]; }' \\
+        taxonkit reformat -j ${task.cpus} -i 3 -f "{\$rank}" ${sample_id}_CSV/${sample_id}_merge_tax.csv \
+            | cut -f 1,4- | sed 's/ /_/g' | awk '{ tax[\$2] += \$1; } END { for (i in tax) print i "\t" tax[i]; }' \
             | sort -k 2nr,2 | grep -v -e '^\\s' > ${sample_id}_CSV2/${sample_id}_rf\${rank^^}.csv || true
 
-        # Unifica as saídas se existirem dados
         if [ -s ${sample_id}_CSV2/${sample_id}_rf\${rank^^}.csv ] && [ -s ${sample_id}_CSV2/${sample_id}_mf\${rank^^}.csv ]; then
-            paste ${sample_id}_CSV2/${sample_id}_rf\${rank^^}.csv ${sample_id}_CSV2/${sample_id}_mf\${rank^^}.csv \\
-                | cut -f 1,2,4,5 \\
+            paste ${sample_id}_CSV2/${sample_id}_rf\${rank^^}.csv ${sample_id}_CSV2/${sample_id}_mf\${rank^^}.csv \
+                | cut -f 1,2,4,5 \
                 > ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv || true
         else
             touch ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv
         fi
 
-        # Cabeçalho do relatório final
         echo "Microorganisms,reads,RPM,RA" > ${sample_id}_fRep/${sample_id}_f\${rank^^}.csv
         if [ -s ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv ]; then
             cat ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv >> ${sample_id}_fRep/${sample_id}_f\${rank^^}.csv
@@ -165,7 +161,6 @@ process MERGE_AND_KRONA {
         rm -f ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv
     done
 
-    # Limpeza dos ficheiros temporários p*.csv da pasta fRep (se tiverem sido copiados previamente)
     rm -f ${sample_id}_fRep/${sample_id}_p*.csv
     """
 }
