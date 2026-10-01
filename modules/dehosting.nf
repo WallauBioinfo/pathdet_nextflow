@@ -86,6 +86,7 @@ process DEHOST_BLASTN {
     tuple val(sample_id), path("${sample_id}_nohit.fasta"), emit: fasta
     tuple val(sample_id), path("${sample_id}_log_p2.txt") , emit: log
     path "${sample_id}_hgs.txt"                           , emit: blast_out
+    path "${sample_id}_nohitID.txt"                       , emit: nohit_id    
 
     script:
     def read2_param = reads instanceof List && reads.size() > 1 ? "${reads[1]}" : ""

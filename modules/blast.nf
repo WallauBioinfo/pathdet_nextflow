@@ -74,9 +74,9 @@ process MERGE_AND_KRONA {
     tuple val(sample_id), path("${sample_id}_blast_hit.txt")                 , emit: blast_hit
     tuple val(sample_id), path("${sample_id}_pathogen_final.html")           , emit: krona_html
     tuple val(sample_id), path("${sample_id}_CSV/${sample_id}_merge_taxid.csv"), emit: merge_taxid
-    path "${sample_id}_CSV/*"                                                , emit: csv_dir
-    path "${sample_id}_CSV2/*"                                               , emit: csv2_dir
-    path "${sample_id}_fRep/*"                                               , emit: frep_dir
+    path "${sample_id}_CSV"                                                  , emit: csv_dir
+    path "${sample_id}_CSV2"                                                 , emit: csv2_dir
+    path "${sample_id}_fRep"                                                 , emit: frep_dir
 
     script:
     def taxonkit_db_dir = "${params.datadir}/taxonkit/taxdump"
@@ -164,6 +164,9 @@ process MERGE_AND_KRONA {
         fi
         rm -f ${sample_id}_fRep/${sample_id}_f\${rank^^}1.csv
     done
+
+    # Limpeza dos ficheiros temporários p*.csv da pasta fRep (se tiverem sido copiados previamente)
+    rm -f ${sample_id}_fRep/${sample_id}_p*.csv
     """
 }
 

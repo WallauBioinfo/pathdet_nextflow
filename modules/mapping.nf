@@ -33,23 +33,10 @@ process ALIGN_AND_VARIANT_CALLING {
     tuple val(sample_id), path(ref_fasta), path(reads)
 
     output:
-    path "${sample_id}_map/${sample_id}.sort.bam"               , emit: bam
-    path "${sample_id}_map/${sample_id}.sort.bam.bai"           , emit: bai
-    path "${sample_id}_map/${sample_id}_map.csv"                , emit: map_csv, optional: true
-    path "${sample_id}_con/${sample_id}.vcf.gz"                 , emit: vcf
-    path "${sample_id}_con/${sample_id}.vcf.gz.csi"             , emit: vcf_csi
-    path "${sample_id}_con/${sample_id}.norm.bcf"               , emit: norm_bcf, optional: true
-    path "${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz"    , emit: flt_vcf, optional: true
-    path "${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz.csi", emit: flt_vcf_csi, optional: true
-    path "${sample_id}_con/${sample_id}_consensus.fa"           , emit: consensus
-    path "${sample_id}_bw/${sample_id}.bw"                      , emit: bw, optional: true
-    path "${sample_id}_bw/${sample_id}.bdg.gz"                  , emit: bdg, optional: true
-    path "${sample_id}_bw/${sample_id}.bdg.gz.tbi"              , emit: bdg_tbi, optional: true
-    path "${sample_id}_bw/spark_*.svg"                          , emit: spark_svg, optional: true
-    path "${sample_id}_bw/${sample_id}_ref.fa"                  , emit: bw_ref, optional: true
-    path "MAP/REF.fasta"                                        , emit: ref_fasta
-    path "MAP/REF.fasta.fai"                                    , emit: ref_fai
-    path "MAP/ref_list*.txt"                                    , emit: ref_lists, optional: true
+    path "${sample_id}_map" , emit: map_dir
+    path "${sample_id}_con" , emit: con_dir
+    path "${sample_id}_bw"  , emit: bw_dir
+    path "MAP"             , emit: map_ref_dir
 
     script:
     """
@@ -67,27 +54,21 @@ process ALIGN_AND_VARIANT_CALLING {
         exit 0
     fi
 
-    # Cópia e indexação da referência no diretório MAP/
     cp ${ref_fasta} MAP/REF.fasta
     samtools faidx MAP/REF.fasta
     bwa index MAP/REF.fasta
 
-    # Criação dos ref_list1, ref_list2 e ref_list3 conforme o pipeline original
     cut -f1 MAP/REF.fasta.fai > MAP/ref_list1.txt
     cut -f1,2 MAP/REF.fasta.fai > MAP/ref_list2.txt
     cp MAP/ref_list2.txt MAP/ref_list3.txt
 
-    # Alinhamento BWA MEM sem descarte de unmapped no view para manter tamanho idêntico
     bwa mem -t ${task.cpus} MAP/REF.fasta ${reads[0]} ${reads[1]} | \
         samtools view -@ ${task.cpus} -bS - | \
         samtools sort -@ ${task.cpus} -o ${sample_id}_map/${sample_id}.sort.bam -
     
     samtools index ${sample_id}_map/${sample_id}.sort.bam
-
-    # Formato do map.csv (contagem total de reads alinhadas)
     samtools view -c -F 4 ${sample_id}_map/${sample_id}.sort.bam > ${sample_id}_map/${sample_id}_map.csv
 
-    # Cobertura e BigWig
     cp MAP/REF.fasta ${sample_id}_bw/${sample_id}_ref.fa
     bedtools genomecov -ibam ${sample_id}_map/${sample_id}.sort.bam -bg > temp.bdg || true
 
@@ -103,7 +84,6 @@ process ALIGN_AND_VARIANT_CALLING {
         touch ${sample_id}_bw/${sample_id}.bw ${sample_id}_bw/${sample_id}.bdg.gz ${sample_id}_bw/${sample_id}.bdg.gz.tbi
     fi
 
-    # Chamada de Variantes e Normalização BCFtools
     bcftools mpileup -f MAP/REF.fasta ${sample_id}_map/${sample_id}.sort.bam | \
         bcftools call -mv -Ob -o ${sample_id}_con/${sample_id}.bcf || true
 

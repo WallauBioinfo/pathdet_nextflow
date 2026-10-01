@@ -72,11 +72,10 @@ process GENERATE_TBL_FOLDER {
     path "${sample_id}_report.csv"         , optional: true
     path "${sample_id}_bacteria_report.csv", optional: true
     path "${sample_id}_bRep/*"             , optional: true
-    path "${sample_id}_fRep/*"             , optional: true
 
     script:
     """
-    mkdir -p ${sample_id}_bRep ${sample_id}_fRep
+    mkdir -p ${sample_id}_bRep
 
     if [ -f ${pre_report} ]; then
         cp ${pre_report} ./${sample_id}_report.csv
@@ -84,8 +83,16 @@ process GENERATE_TBL_FOLDER {
     fi
 
     if [ -d ${prep_dir} ]; then
+        # Copia mantendo os originais e cria as versões padronizadas Bacteria_f*.csv
         cp ${prep_dir}/*.csv ./${sample_id}_bRep/ 2>/dev/null || true
-        cp ${prep_dir}/*.csv ./${sample_id}_fRep/ 2>/dev/null || true
+        
+        for file in ./${sample_id}_bRep/${sample_id}_p*.csv; do
+            if [ -f "\$file" ]; then
+                new_name=\$(echo "\$file" | sed "s/${sample_id}_p/${sample_id}_Bacteria_f/")
+                cp "\$file" "\$new_name"
+                rm -f "\$file"
+            fi
+        done
     fi
     """
 }
