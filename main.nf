@@ -9,7 +9,7 @@ include { DEHOST_KRAKEN2  } from './modules/dehosting.nf'
 include { DEHOST_BOWTIE2  } from './modules/dehosting.nf'
 include { DEHOST_HISAT2   } from './modules/dehosting.nf'
 include { DEHOST_BLASTN   } from './modules/dehosting.nf'
-include { RAPID_ANALYSIS; GENERATE_TBL_FOLDER } from './modules/rapid.nf'
+include { RAPID_ANALYSIS } from './modules/rapid.nf'
 include {
     SPLIT_FASTA;
     RUN_BLASTN;
@@ -41,18 +41,15 @@ workflow {
     DEHOST_KRAKEN2 ( QUALITY_CONTROL.out.sample, params.kraken2_grch38 )
     DEHOST_BOWTIE2 ( DEHOST_KRAKEN2.out.reads,   params.bowtie2_host )
     DEHOST_HISAT2  ( DEHOST_BOWTIE2.out.reads,   params.hisat2_grch38r )
-    DEHOST_BLASTN  ( DEHOST_HISAT2.out.reads,    params.blast_host2, QUALITY_CONTROL.out.log )
+    // join por sample_id: com várias amostras os canais não chegam na mesma ordem
+    DEHOST_BLASTN  ( DEHOST_HISAT2.out.reads.join(QUALITY_CONTROL.out.log), params.blast_host2 )
 
     // 3. Análise Rápida por k-meros (p03_rapid)
     RAPID_ANALYSIS (
-        DEHOST_BLASTN.out.fasta,
-        QUALITY_CONTROL.out.log,
-        DEHOST_BLASTN.out.log,
+        DEHOST_BLASTN.out.fasta
+            .join(QUALITY_CONTROL.out.log)
+            .join(DEHOST_BLASTN.out.log),
         params.pathdb1_db
-    )
-
-    GENERATE_TBL_FOLDER (
-        RAPID_ANALYSIS.out.pre_report.join(RAPID_ANALYSIS.out.rank_csvs)
     )
 
     // 4. Módulo BLAST (p03_blast) e Krona (p04_krona)
@@ -65,12 +62,11 @@ workflow {
     // 5. Mapeamento, Cobertura e Chamada de Variantes (p05_map)
     FETCH_REFERENCE_GENOMES (
         MERGE_AND_KRONA.out.merge_taxid,
-        file(params.ncbi_lineage_tsv),
         file(params.ncbi_genome_dir)
     )
 
-    // Cruzamento das referências geradas com as reads limpas
-    ch_align_input = FETCH_REFERENCE_GENOMES.out.ref_fasta.join(DEHOST_HISAT2.out.reads)
+    // O bash mapeia as reads do QC (trimmed2_R1/R2), não as reads sem hospedeiro
+    ch_align_input = FETCH_REFERENCE_GENOMES.out.ref_fasta.join(QUALITY_CONTROL.out.sample)
     ALIGN_AND_VARIANT_CALLING ( ch_align_input )
 }
 

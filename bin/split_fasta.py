@@ -39,7 +39,7 @@ def split_fasta(input_file, batch_size, output_prefix):
 
     with open(output_prefix + 'summary.txt', 'w') as summary_file:
         summary_file.write(f"Total Reads: {total_reads}\n")
-        summary_file.write(f"Number of Batches: {batch_count}\n")
+        summary_file.write(f"Number of Batches: {batch_count - 1}\n")
         summary_file.write(f"Last Batch Reads: {last_batch_reads}\n")
         summary_file.write(f"Remaining Reads: {remaining_reads}\n")
 
