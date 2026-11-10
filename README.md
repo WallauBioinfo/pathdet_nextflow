@@ -32,8 +32,8 @@ cd pathdet_nextflow
 You can create the Conda environment using the `environment.yml` file:
 
 ```bash
-conda env create -f environment.yml
-conda activate pathdet_env
+micromamba env create -f env/env.yml
+micromamba activate pathdet_envg
 ```
 
 ### Apache Spark & SparK.py
@@ -41,7 +41,7 @@ The coverage plot generation script per contig (`ALIGN_AND_VARIANT_CALLING`) req
 
 ```bash
 git clone https://github.com/harbourlab/SparK.git $CONDA_PREFIX/opt/git/SparK
-cp /path/to/deliv/scripts/* $CONDA_PREFIX/bin/
+bash $CONDA_PREFIX/opt/krona/updateTaxonomy.sh
 ```
 
 ---
@@ -74,7 +74,7 @@ db/
 
 ```
 
----
+To prepare the database, follow section 2 of the following document: https://github.com/khoriba/PATHDET_long-read/blob/main/README.md
 
 ## 4. Input File Format (CSV)
 
