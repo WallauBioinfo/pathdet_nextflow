@@ -2,8 +2,8 @@
 """
 taxid_parser.py
 
-Mapeia os genomas locais de referência (assembly report + arquivo fna.gz)
-com base na árvore de taxonomia (nodes.dmp) fornecida pelo NCBI.
+Maps local reference genomes (assembly report + fna.gz file)
+based on the taxonomy tree (nodes.dmp) provided by NCBI.
 """
 
 import sys
@@ -17,7 +17,6 @@ ORGANISM_GROUPS = ['bacteria', 'fungi', 'viral']
 
 
 def load_ncbi_parent_map(nodes_file_path: str) -> Dict[int, int]:
-    """Carrega o arquivo nodes.dmp do NCBI criando um mapa filho -> pai via Pandas."""
     dataframe_nodes = pd.read_csv(
         nodes_file_path,
         sep=r'\s*\|\s*',
@@ -30,7 +29,6 @@ def load_ncbi_parent_map(nodes_file_path: str) -> Dict[int, int]:
 
 
 def build_taxonomy_lineage(child_tax_id: int, parent_taxid_map: Dict[int, int]) -> str:
-    """Reconstrói a linhagem taxonômica hierárquica do TaxID informado até a raiz (ID 1)."""
     lineage_ids: List[str] = [str(child_tax_id)]
     current_tax_id = child_tax_id
 
@@ -44,7 +42,6 @@ def build_taxonomy_lineage(child_tax_id: int, parent_taxid_map: Dict[int, int]) 
 
 
 def extract_taxid_from_assembly_report(assembly_report_path: Path) -> Optional[int]:
-    """Extrai o TaxID do cabeçalho do arquivo assembly_report.txt."""
     if not assembly_report_path.is_file():
         return None
 
@@ -60,7 +57,6 @@ def extract_taxid_from_assembly_report(assembly_report_path: Path) -> Optional[i
 
 
 def parse_accession_directory(accession_directory: Path, group_name: str) -> Optional[dict]:
-    """Localiza e extrai os metadados do arquivo de relatório e arquivo genomic FASTA."""
     accession_number = accession_directory.name
     report_files = list(accession_directory.glob(f"{accession_number}_*_assembly_report.txt"))
 
@@ -92,7 +88,6 @@ def parse_accession_directory(accession_directory: Path, group_name: str) -> Opt
 
 
 def collect_genomes_dataframe(genomes_base_directory: str) -> pd.DataFrame:
-    """Varre as pastas de organismos e consolida as informações em um DataFrame Pandas."""
     base_path = Path(genomes_base_directory)
     records: List[dict] = []
 
@@ -117,39 +112,29 @@ def process_taxonomy_and_format_output(
     dataframe_genomes: pd.DataFrame, 
     parent_taxid_map: Dict[int, int]
 ) -> pd.DataFrame:
-    """Calcula a linhagem taxonômica com Pandas e ordena o resultado final por TaxID."""
     if dataframe_genomes.empty:
         return dataframe_genomes
 
-    # Remove duplicatas de TaxID/Accession mantendo consistência de dados
     dataframe_genomes = dataframe_genomes.drop_duplicates(subset=["tax_id", "accession"]).copy()
-
-    # Aplica a reconstrução da linhagem na coluna de TaxID
     dataframe_genomes["lineage"] = dataframe_genomes["tax_id"].apply(
         lambda tax_id: build_taxonomy_lineage(tax_id, parent_taxid_map)
     )
-
-    # Ordena numericamente pelo TaxID
     dataframe_genomes = dataframe_genomes.sort_values(by="tax_id")
-
     return dataframe_genomes[["lineage", "tax_id", "fasta_path"]]
 
 
 def main() -> None:
     if len(sys.argv) < 3:
-        print("Uso: python3 taxid_parser.py <diretorio_genomas> <nodes.dmp>", file=sys.stderr)
+        print("Use: python3 taxid_parser.py <genomes_directory> <nodes.dmp>", file=sys.stderr)
         sys.exit(1)
 
     genomes_base_directory = sys.argv[1]
     ncbi_nodes_file_path = sys.argv[2]
-
     parent_taxid_map = load_ncbi_parent_map(ncbi_nodes_file_path)
     dataframe_genomes = collect_genomes_dataframe(genomes_base_directory)
-    
     dataframe_output = process_taxonomy_and_format_output(dataframe_genomes, parent_taxid_map)
 
     if not dataframe_output.empty:
-        # Exporta no formato TSV sem cabeçalho e sem índice, idêntico à saída original
         dataframe_output.to_csv(sys.stdout, sep="\t", header=False, index=False)
 
 

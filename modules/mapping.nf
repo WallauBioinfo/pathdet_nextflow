@@ -6,20 +6,21 @@ process FETCH_REFERENCE_GENOMES {
 
     input:
     tuple val(sample_id), path(merge_taxid_csv)
-    path ncbi_lineage_tsv
     path ncbi_genome_dir
 
     output:
-    tuple val(sample_id), path("REF.fasta")    , emit: ref_fasta
-    tuple val(sample_id), path("ref_list.txt") , emit: ref_list
+    tuple val(sample_id), path("MAP/REF.fasta"), optional: true, emit: ref_fasta
+    path "MAP/ref_list*.txt"                   , optional: true, emit: ref_lists_map
+    path "ref_list*.txt"                       , optional: true, emit: ref_lists
+    path "${sample_id}_log_p5.txt"                             , emit: log
 
     script:
     """
-    python3 ${projectDir}/bin/fetch_genomes.py \\
-        ${merge_taxid_csv} \\
-        ${ncbi_lineage_tsv} \\
-        ${ncbi_genome_dir} \\
-        .
+    python3 ${projectDir}/bin/fetch_genomes.py \
+        ${merge_taxid_csv} \
+        ${ncbi_genome_dir} \
+        . \
+        ${sample_id}
     """
 }
 
@@ -33,73 +34,51 @@ process ALIGN_AND_VARIANT_CALLING {
     tuple val(sample_id), path(ref_fasta), path(reads)
 
     output:
-    path "${sample_id}_map" , emit: map_dir
-    path "${sample_id}_con" , emit: con_dir
-    path "${sample_id}_bw"  , emit: bw_dir
-    path "MAP"             , emit: map_ref_dir
+    path "${sample_id}_map"  , emit: map_dir
+    path "${sample_id}_con"  , emit: con_dir
+    path "${sample_id}_bw"   , emit: bw_dir
+    path "MAP/REF.fasta.fai" , emit: ref_fai
 
     script:
     """
-    #!/bin/bash
-    set -e
+    mkdir -p MAP ${sample_id}_map ${sample_id}_con ${sample_id}_bw
 
-    mkdir -p ${sample_id}_map ${sample_id}_con ${sample_id}_bw MAP
+    samtools faidx ${ref_fasta}
+    cp ${ref_fasta}.fai MAP/REF.fasta.fai
 
-    if [ ! -s ${ref_fasta} ]; then
-        touch ${sample_id}_map/${sample_id}.sort.bam ${sample_id}_map/${sample_id}.sort.bam.bai
-        touch ${sample_id}_con/${sample_id}.vcf.gz ${sample_id}_con/${sample_id}.vcf.gz.csi ${sample_id}_con/${sample_id}_consensus.fa
-        touch ${sample_id}_bw/${sample_id}.bw ${sample_id}_bw/${sample_id}.bdg.gz ${sample_id}_bw/${sample_id}.bdg.gz.tbi
-        touch MAP/REF.fasta MAP/REF.fasta.fai MAP/ref_list1.txt MAP/ref_list2.txt MAP/ref_list3.txt
-        echo "0" > ${sample_id}_map/${sample_id}_map.csv
-        exit 0
-    fi
-
-    cp ${ref_fasta} MAP/REF.fasta
-    samtools faidx MAP/REF.fasta
-    bwa index MAP/REF.fasta
-
-    cut -f1 MAP/REF.fasta.fai > MAP/ref_list1.txt
-    cut -f1,2 MAP/REF.fasta.fai > MAP/ref_list2.txt
-    cp MAP/ref_list2.txt MAP/ref_list3.txt
-
-    bwa mem -t ${task.cpus} MAP/REF.fasta ${reads[0]} ${reads[1]} | \
-        samtools view -@ ${task.cpus} -bS - | \
-        samtools sort -@ ${task.cpus} -o ${sample_id}_map/${sample_id}.sort.bam -
-    
+    # Mapping (p05_map.sh, MODE=short)
+    minimap2 -t ${task.cpus} -ax sr ${ref_fasta} ${reads[0]} ${reads[1]} \
+        | samtools sort -o ${sample_id}_map/${sample_id}.sort.bam
     samtools index ${sample_id}_map/${sample_id}.sort.bam
-    samtools view -c -F 4 ${sample_id}_map/${sample_id}.sort.bam > ${sample_id}_map/${sample_id}_map.csv
+    pileup.sh in=${sample_id}_map/${sample_id}.sort.bam ref=${ref_fasta} out=${sample_id}_map/${sample_id}_map.csv
 
-    cp MAP/REF.fasta ${sample_id}_bw/${sample_id}_ref.fa
-    bedtools genomecov -ibam ${sample_id}_map/${sample_id}.sort.bam -bg > temp.bdg || true
+    # Variant calling and consensus
+    bcftools mpileup -Ou -f ${ref_fasta} ${sample_id}_map/${sample_id}.sort.bam \
+        | bcftools call -mv -Oz -o ${sample_id}_con/${sample_id}.vcf.gz
+    bcftools index ${sample_id}_con/${sample_id}.vcf.gz
 
-    if [ -s temp.bdg ]; then
-        LC_ALL=C sort -k1,1 -k2,2n temp.bdg > temp.sorted.bdg
-        bgzip -c temp.sorted.bdg > ${sample_id}_bw/${sample_id}.bdg.gz
-        tabix -p bed ${sample_id}_bw/${sample_id}.bdg.gz || true
+    bcftools norm -f ${ref_fasta} ${sample_id}_con/${sample_id}.vcf.gz \
+        -Ob -o ${sample_id}_con/${sample_id}.norm.bcf
+    bcftools filter --IndelGap 5 ${sample_id}_con/${sample_id}.norm.bcf \
+        -Oz -o ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz
+    bcftools index ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz
 
-        cut -f1,2 MAP/REF.fasta.fai > chrom.sizes
-        bedGraphToBigWig temp.sorted.bdg chrom.sizes ${sample_id}_bw/${sample_id}.bw || cp temp.sorted.bdg ${sample_id}_bw/${sample_id}.bw
-        rm -f temp.bdg temp.sorted.bdg chrom.sizes
-    else
-        touch ${sample_id}_bw/${sample_id}.bw ${sample_id}_bw/${sample_id}.bdg.gz ${sample_id}_bw/${sample_id}.bdg.gz.tbi
-    fi
+    cat ${ref_fasta} \
+        | bcftools consensus ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz \
+        > ${sample_id}_con/${sample_id}_consensus.fa
 
-    bcftools mpileup -f MAP/REF.fasta ${sample_id}_map/${sample_id}.sort.bam | \
-        bcftools call -mv -Ob -o ${sample_id}_con/${sample_id}.bcf || true
+    # BigWig and bedGraph
+    bamCoverage -b ${sample_id}_map/${sample_id}.sort.bam -o ${sample_id}_bw/${sample_id}.bw -of bigwig \
+        --binSize=10 --minMappingQuality 10 --numberOfProcessors=${task.cpus}
+    bamCoverage -b ${sample_id}_map/${sample_id}.sort.bam -o ${sample_id}_bw/${sample_id}.bdg -bs 1 -of bedgraph
+    bgzip ${sample_id}_bw/${sample_id}.bdg
+    tabix -p bed ${sample_id}_bw/${sample_id}.bdg.gz
 
-    if [ -s ${sample_id}_con/${sample_id}.bcf ]; then
-        bcftools norm -f MAP/REF.fasta ${sample_id}_con/${sample_id}.bcf -Ob -o ${sample_id}_con/${sample_id}.norm.bcf || true
-        bcftools filter -s LOWQUAL -e 'QUAL<20 || DP<10' ${sample_id}_con/${sample_id}.norm.bcf -Oz -o ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz || true
-        
-        if [ -s ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz ]; then
-            bcftools index ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz || true
-        fi
-
-        bcftools view ${sample_id}_con/${sample_id}.bcf -Oz -o ${sample_id}_con/${sample_id}.vcf.gz || true
-        bcftools index ${sample_id}_con/${sample_id}.vcf.gz || true
-        bcftools consensus -f MAP/REF.fasta ${sample_id}_con/${sample_id}.vcf.gz > ${sample_id}_con/${sample_id}_consensus.fa || touch ${sample_id}_con/${sample_id}_consensus.fa
-    else
-        touch ${sample_id}_con/${sample_id}.vcf.gz ${sample_id}_con/${sample_id}.vcf.gz.csi ${sample_id}_con/${sample_id}_consensus.fa
-    fi
+    # spark plots (SVG), one by contig
+    cp ${ref_fasta} ${sample_id}_bw/${sample_id}_ref.fa
+    while read -r contig len _ ; do
+        python ${params.spark_script} -pr "\$contig:1-\$len" \
+            -cf ${sample_id}_bw/${sample_id}.bdg.gz -o ${sample_id}_bw/spark_\$contig
+    done < ${ref_fasta}.fai
     """
 }
