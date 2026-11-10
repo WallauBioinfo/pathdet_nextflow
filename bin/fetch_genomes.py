@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
 fetch_genomes.py
-Replica a busca de genomas de referência do p05_map.sh (funções fetch/get_fasta):
-para cada um dos 3 principais TaxIDs (<id>_merge_taxid.csv) procura primeiro na
-tabela `reference/` e, se não houver, na tabela `all/` (refseq_lineage_taxid_fasta.tsv).
+Replicates the reference genome search from p05_map.sh (fetch/get_fasta functions):
+for each of the top 3 TaxIDs (<id>_merge_taxid.csv), it first searches in the
+`reference/` table and, if not found, in the `all/` table (refseq_lineage_taxid_fasta.tsv).
 
-Saídas em <output_directory>:
-  MAP/REF.fasta e MAP/ref_list{1,2,3}.txt   (só se algum genoma foi encontrado)
-  ref_list{1,2,3}.txt na raiz                (se nenhum genoma foi encontrado, como o bash)
+Outputs in <output_directory>:
+  MAP/REF.fasta and MAP/ref_list{1,2,3}.txt   (only if any genome was found)
+  ref_list{1,2,3}.txt in the root              (if no genome was found, like the bash script)
   <sample_id>_log_p5.txt
 
-Uso: fetch_genomes.py <merge_taxid_csv> <ncbi_genome_dir> <output_directory> <sample_id>
+Usage: fetch_genomes.py <merge_taxid_csv> <ncbi_genome_dir> <output_directory> <sample_id>
 """
 
 import gzip
@@ -21,25 +21,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Set
 
-# Resolve 'bin/utils' explicitamente antes de importar os utilitários
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
 from awk_compat import cut_field, read_lines  # noqa: E402
 
 
 class LineageTable:
-    """Tabela lineage<TAB>taxid<TAB>fasta_path, lida como o bash (grep sobre linhas)."""
 
     def __init__(self, table_path: Path):
         self.lines = read_lines(table_path)
-        body = self.lines[1:]  # o bash faz `sed 1d` ao montar as listas de membros
-        self.taxids: Set[str] = {cut_field(line, 2) for line in body}  # id_*1
-        self.lineage_ids: Set[str] = {  # id_*2
+        body = self.lines[1:]
+        self.taxids: Set[str] = {cut_field(line, 2) for line in body}
+        self.lineage_ids: Set[str] = {
             token for line in body for token in cut_field(line, 1).split(",")
         }
 
     def fetch(self, pattern: str) -> List[str]:
-        """grep -E "pattern" tabela | cut -f 3."""
         regex = re.compile(pattern)
         return [cut_field(line, 3) for line in self.lines if regex.search(line)]
 
@@ -55,7 +52,6 @@ def ordinal(number: int) -> str:
 
 
 def search_genomes(taxid: str, number: int, reference: LineageTable, registered: LineageTable):
-    """Devolve (linhas_do_log, caminhos_brutos) para um dos 3 principais TaxIDs."""
     name = ordinal(number)
     log = [f">{name}_Hit microbe reference genome"]
     if taxid in reference.taxids:
@@ -77,7 +73,7 @@ def search_genomes(taxid: str, number: int, reference: LineageTable, registered:
 def main() -> None:
     if len(sys.argv) < 5:
         print(
-            "Uso: fetch_genomes.py <merge_taxid_csv> <ncbi_genome_dir> "
+            "Usage: fetch_genomes.py <merge_taxid_csv> <ncbi_genome_dir>"
             "<output_directory> <sample_id>",
             file=sys.stderr,
         )
@@ -95,7 +91,6 @@ def main() -> None:
 
     ref_lists, fasta_paths = [], []
     for number in (1, 2, 3):
-        # sed -n ${num}p | cut -f 2
         taxid = cut_field(ranked[number - 1], 2) if len(ranked) >= number else ""
         log_lines, raw_paths = search_genomes(taxid, number, reference, registered)
         for raw in raw_paths:
@@ -104,7 +99,6 @@ def main() -> None:
             log_lines.append(Path(full).name)
         ref_lists.append(log_lines)
 
-    # REF.fasta (zcat >> REF.fasta) só se houve algum caminho
     map_dir = output_dir / "MAP"
     if fasta_paths:
         map_dir.mkdir(parents=True, exist_ok=True)
@@ -116,13 +110,11 @@ def main() -> None:
                 except OSError as error:
                     print(f"zcat: {path}: {error}", file=sys.stderr)
 
-    # <id>_log_p5.txt: carimbo + conteúdo dos três ref_list
     stamp = datetime.now().strftime("%y%m%d%H%M%S")
     log_text = f"{stamp} reference genome search finished.\n"
     for number, lines in enumerate(ref_lists, start=1):
         text = "".join(f"{line}\n" for line in lines)
         log_text += text
-        # mv ref_list*.txt MAP/ só funciona se MAP existir
         target = map_dir if fasta_paths else output_dir
         (target / f"ref_list{number}.txt").write_text(text, encoding="utf-8")
     (output_dir / f"{sample_id}_log_p5.txt").write_text(log_text, encoding="utf-8")

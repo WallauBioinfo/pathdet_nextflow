@@ -9,7 +9,6 @@ process FETCH_REFERENCE_GENOMES {
     path ncbi_genome_dir
 
     output:
-    // Como no bash: sem genoma encontrado não há MAP/ nem etapa de mapeamento
     tuple val(sample_id), path("MAP/REF.fasta"), optional: true, emit: ref_fasta
     path "MAP/ref_list*.txt"                   , optional: true, emit: ref_lists_map
     path "ref_list*.txt"                       , optional: true, emit: ref_lists
@@ -32,7 +31,6 @@ process ALIGN_AND_VARIANT_CALLING {
     publishDir "${params.out}/${sample_id}/${sample_id}_map", mode: 'copy'
 
     input:
-    // reads = trimmed2_R1/R2 da etapa de QC (é o que o bash mapeia)
     tuple val(sample_id), path(ref_fasta), path(reads)
 
     output:
@@ -48,13 +46,13 @@ process ALIGN_AND_VARIANT_CALLING {
     samtools faidx ${ref_fasta}
     cp ${ref_fasta}.fai MAP/REF.fasta.fai
 
-    # Mapeamento (p05_map.sh, MODE=short)
+    # Mapping (p05_map.sh, MODE=short)
     minimap2 -t ${task.cpus} -ax sr ${ref_fasta} ${reads[0]} ${reads[1]} \
         | samtools sort -o ${sample_id}_map/${sample_id}.sort.bam
     samtools index ${sample_id}_map/${sample_id}.sort.bam
     pileup.sh in=${sample_id}_map/${sample_id}.sort.bam ref=${ref_fasta} out=${sample_id}_map/${sample_id}_map.csv
 
-    # Chamada de variantes e consenso
+    # Variant calling and consensus
     bcftools mpileup -Ou -f ${ref_fasta} ${sample_id}_map/${sample_id}.sort.bam \
         | bcftools call -mv -Oz -o ${sample_id}_con/${sample_id}.vcf.gz
     bcftools index ${sample_id}_con/${sample_id}.vcf.gz
@@ -69,14 +67,14 @@ process ALIGN_AND_VARIANT_CALLING {
         | bcftools consensus ${sample_id}_con/${sample_id}.norm.flt-idls.vcf.gz \
         > ${sample_id}_con/${sample_id}_consensus.fa
 
-    # BigWig e bedGraph
+    # BigWig and bedGraph
     bamCoverage -b ${sample_id}_map/${sample_id}.sort.bam -o ${sample_id}_bw/${sample_id}.bw -of bigwig \
         --binSize=10 --minMappingQuality 10 --numberOfProcessors=${task.cpus}
     bamCoverage -b ${sample_id}_map/${sample_id}.sort.bam -o ${sample_id}_bw/${sample_id}.bdg -bs 1 -of bedgraph
     bgzip ${sample_id}_bw/${sample_id}.bdg
     tabix -p bed ${sample_id}_bw/${sample_id}.bdg.gz
 
-    # Gráficos SparK (SVG), um por contig
+    # spark plots (SVG), one by contig
     cp ${ref_fasta} ${sample_id}_bw/${sample_id}_ref.fa
     while read -r contig len _ ; do
         python ${params.spark_script} -pr "\$contig:1-\$len" \

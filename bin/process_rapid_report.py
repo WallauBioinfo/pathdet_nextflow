@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Etapa Rapid: tudo o que o rapid() do bash fazia depois do kraken2 e do Krona.
+"""
+Rapid Step: everything that the bash rapid() did after kraken2 and Krona.
 
-Gera, com os mesmos nomes e conteúdos do bash:
+Generates, with the exact same names and contents as the bash script:
   KK2/<id>_p2.kreport, <id>_tax.kreport, <id>_tax2.kreport
-  CSV/<id>_mp{K,P,F,G,S}.csv e <id>_rp{K,P,F,G,S}.csv
+  CSV/<id>_mp{K,P,F,G,S}.csv and <id>_rp{K,P,F,G,S}.csv
   <id>_pRep/<id>_p{K,P,F,G,S}.csv
-  <id>_pre-report.csv e <id>_log_Rapid.txt
+  <id>_pre-report.csv and <id>_log_Rapid.txt
 """
 
 import argparse
@@ -14,7 +15,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Resolve 'bin/utils' explicitamente antes de importar os utilitários
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
 from awk_compat import bc_percent, read_lines, write_lines  # noqa: E402
@@ -38,7 +38,7 @@ def _timestamp() -> str:
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Relatórios da etapa Rapid.")
+    parser = argparse.ArgumentParser(description="Rapid step reports")
     parser.add_argument("--sample-id", required=True)
     parser.add_argument("--log-p1-path", required=True, type=Path)
     parser.add_argument("--log-p2-path", required=True, type=Path)
@@ -93,7 +93,7 @@ def main() -> None:
     rmda2 = metrics["total_quality_filtered_reads"]
     hg2 = metrics["total_non_human_reads"]
 
-    # --- contagens do kraken2 e log_Rapid (primeiras 2 linhas)
+    # --- Kraken2 counts and log_Rapid (first 2 lines)
     kraken_stamp = _timestamp()
     classified = count_fastq_reads(args.classified_fastq_path)
     unclassified = count_fastq_reads(args.unclassified_fastq_path)
@@ -112,7 +112,7 @@ def main() -> None:
     tax2_lines = tax_to_rpm_lines(tax_lines, rmda2)
     write_lines(args.kk2_dir / f"{sid}_tax2.kreport", tax2_lines)
 
-    # --- CSV/ e pRep/ por rank (o kingdom não filtra nomes vazios, como no bash)
+    # --- CSV/ and pRep/ by rank (kingdom does not filter empty names)
     mp_by_rank, final_by_rank = {}, {}
     for rank in RANKS:
         rp, mp, final = build_rank_table(
@@ -134,7 +134,7 @@ def main() -> None:
         _pre_report_text(sid, metrics, diversity, top3), encoding="utf-8"
     )
 
-    # --- log_Rapid (3.ª linha)
+    # --- log_Rapid
     log_text += f"{_timestamp()} PROMPT REPORT finished ({_elapsed()})\n"
     args.output_log_path.write_text(log_text, encoding="utf-8")
 

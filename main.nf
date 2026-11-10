@@ -34,17 +34,18 @@ input_csv = Channel.fromPath(params.input_csv, checkIfExists: true)
 
 workflow {
 
-    // 1. Controle de Qualidade (p1)
+    // 1. Quality control (p1)
     QUALITY_CONTROL(input_csv)
 
     // 2. Dehosting (p2)
     DEHOST_KRAKEN2 ( QUALITY_CONTROL.out.sample, params.kraken2_grch38 )
     DEHOST_BOWTIE2 ( DEHOST_KRAKEN2.out.reads,   params.bowtie2_host )
     DEHOST_HISAT2  ( DEHOST_BOWTIE2.out.reads,   params.hisat2_grch38r )
-    // join por sample_id: com várias amostras os canais não chegam na mesma ordem
+
+    // Join by sample_id: with multiple samples, channels may not arrive in the same order
     DEHOST_BLASTN  ( DEHOST_HISAT2.out.reads.join(QUALITY_CONTROL.out.log), params.blast_host2 )
 
-    // 3. Análise Rápida por k-meros (p03_rapid)
+    // 3. Rapid Analysis (p03_rapid)
     RAPID_ANALYSIS (
         DEHOST_BLASTN.out.fasta
             .join(QUALITY_CONTROL.out.log)
@@ -52,20 +53,19 @@ workflow {
         params.pathdb1_db
     )
 
-    // 4. Módulo BLAST (p03_blast) e Krona (p04_krona)
+    // 4. Module BLAST (p03_blast) and Krona (p04_krona)
     SPLIT_FASTA ( DEHOST_BLASTN.out.fasta )
     ch_blast_chunks = SPLIT_FASTA.out.chunks.transpose()
     RUN_BLASTN ( ch_blast_chunks )
     ch_grouped_blast = RUN_BLASTN.out.blast_output.groupTuple()
     MERGE_AND_KRONA ( ch_grouped_blast.join(QUALITY_CONTROL.out.log) )
 
-    // 5. Mapeamento, Cobertura e Chamada de Variantes (p05_map)
+    // 5. Mapping, Coverage, and Variant Calling (p05_map)
     FETCH_REFERENCE_GENOMES (
         MERGE_AND_KRONA.out.merge_taxid,
         file(params.ncbi_genome_dir)
     )
 
-    // O bash mapeia as reads do QC (trimmed2_R1/R2), não as reads sem hospedeiro
     ch_align_input = FETCH_REFERENCE_GENOMES.out.ref_fasta.join(QUALITY_CONTROL.out.sample)
     ALIGN_AND_VARIANT_CALLING ( ch_align_input )
 }
@@ -87,4 +87,3 @@ workflow.onComplete {
         """.stripIndent()
     }
 }
-

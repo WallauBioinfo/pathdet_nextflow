@@ -5,13 +5,11 @@ import argparse
 import os
 
 def split_fasta(input_file, batch_size, output_prefix):
-    # Prepara diretório de saída caso venha com caminho de pasta (ex: chunks/)
     out_dir = os.path.dirname(output_prefix)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
     if not os.path.exists(input_file) or os.path.getsize(input_file) == 0:
-        # Trata o caso de FASTA vazio sem quebrar a execução
         with open(output_prefix + 'summary.txt', 'w') as summary_file:
             summary_file.write("Total Reads: 0\nNumber of Batches: 0\nLast Batch Reads: 0\nRemaining Reads: 0\n")
         return

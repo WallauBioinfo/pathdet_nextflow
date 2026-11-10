@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Etapa p04 (tabelas do BLAST): reproduz o p04_krona.sh a partir de
-<id>_merge_tax.csv (reads + linhagem) e <id>_merge_tax2.csv (RPM + linhagem).
+"""
+Step p04 (BLAST tables): reproduces p04_krona.sh from
+<id>_merge_tax.csv (reads + lineage) and <id>_merge_tax2.csv (RPM + lineage).
 
-Gera, com os mesmos nomes e conteúdos do bash:
+Generates, with the exact same names and contents as the bash script:
   <id>_CSV2/<id>_{mf,rf}{K,P,F,G,S}.csv, _mBacteria*/_rBacteria*, _mVirus/_rVirus, _mFungi/_rFungi
   <id>_fRep/<id>_f{K,P,F,G,S}.csv, _Virus.csv, _Fungi.csv
   <id>_bRep/<id>_Bacteria_f{F,G,S}.csv
-  <id>_report.csv e <id>_bacteria_report.csv
+  <id>_report.csv and <id>_bacteria_report.csv
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-# Resolve 'bin/utils' explicitamente antes de importar os utilitários
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
 from awk_compat import awk_sum_second_column, read_lines, write_lines  # noqa: E402
@@ -22,14 +22,14 @@ from taxonomy import build_rank_table, with_header  # noqa: E402
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Relatórios do p04 (BLAST).")
+    parser = argparse.ArgumentParser(description="p04 reports (BLAST).")
     parser.add_argument("--sample-id", required=True)
     parser.add_argument("--merge-tax", required=True, type=Path,
-                        help="<id>_merge_tax.csv (taxonkit lineage sobre o merge.csv)")
+                        help="<id>_merge_tax.csv (taxonkit lineage on merge.csv)")
     parser.add_argument("--merge-tax2", required=True, type=Path,
-                        help="<id>_merge_tax2.csv (RPM, taxid, linhagem)")
+                        help="<id>_merge_tax2.csv (RPM, taxid, lineage)")
     parser.add_argument("--total-reads", required=True,
-                        help="TR: nº de reads do R1 (log_p1, linha 3), como no bash")
+                        help="TR: number of R1 reads (log_p1)")
     parser.add_argument("--csv2-dir", required=True, type=Path)
     parser.add_argument("--frep-dir", required=True, type=Path)
     parser.add_argument("--brep-dir", required=True, type=Path)
@@ -40,7 +40,6 @@ def _parse_arguments() -> argparse.Namespace:
 
 
 def _top_or_message(final_lines, message: str) -> str:
-    """`wc -l` == 0 -> mensagem; senão `head -n3`."""
     return message if len(final_lines) == 0 else head3(final_lines)
 
 
@@ -97,7 +96,7 @@ def main() -> None:
     raw = read_lines(args.merge_tax)      # bash: ${OUT}_merge_tax.csv
     rpm = read_lines(args.merge_tax2)     # bash: ${OUT}_merge_tax2.csv
 
-    # --- todos os organismos: K (sem filtro de nomes vazios), depois P, F, G, S
+    # --- all organisms: K (without empty name filtering), then P, F, G, S
     total = {}
     for rank in "kpfgs":
         rp, mp, final = build_rank_table(raw, rpm, rank, threads, rank != "k")
@@ -107,11 +106,11 @@ def main() -> None:
         write_lines(args.frep_dir / f"{sid}_f{upper}.csv", with_header(final))
         total[rank] = (mp, final)
 
-    # --- subconjuntos por `grep` (substring em qualquer coluna, como no bash)
+    # --- subsets via grep (substring in any column, same as bash)
     def subset(lines, word):
         return [line for line in lines if word in line]
 
-    # Bactérias: species, genus, family
+    # Bacterias: species, genus, family
     bacteria = {}
     raw_b, rpm_b = subset(raw, "Bacteria"), subset(rpm, "Bacteria")
     for rank in "sgf":
@@ -122,7 +121,7 @@ def main() -> None:
         write_lines(args.brep_dir / f"{sid}_Bacteria_f{upper}.csv", with_header(final))
         bacteria[rank] = (mp, final)
 
-    # Vírus e fungos: só species
+    # Vírus and fungi: only species
     extras = {}
     for word, name in (("Virus", "Virus"), ("Fungi", "Fungi")):
         rp, mp, final = build_rank_table(
@@ -133,11 +132,11 @@ def main() -> None:
         write_lines(args.frep_dir / f"{sid}_{name}.csv", with_header(final))
         extras[name] = (mp, final)
 
-    # --- parâmetros
-    pr2 = awk_sum_second_column(total["f"][1])        # soma de reads (fF1)
-    pr3 = awk_sum_second_column(bacteria["f"][1])     # soma de reads (BacteriaF1)
-    prstd2 = awk_sum_second_column(total["k"][0])     # soma de RPM (mfK)
-    prstd3 = awk_sum_second_column(bacteria["f"][0])  # soma de RPM (mBacteriaF)
+    # --- parameters
+    pr2 = awk_sum_second_column(total["f"][1])        # sum of reads (fF1)
+    pr3 = awk_sum_second_column(bacteria["f"][1])     # sum of reads (BacteriaF1)
+    prstd2 = awk_sum_second_column(total["k"][0])     # sum of RPM (mfK)
+    prstd3 = awk_sum_second_column(bacteria["f"][0])  # sum of RPM (mBacteriaF)
 
     div_total = {
         "simpson": {r: simpson_index(total[r][0]) for r in "fgs"},

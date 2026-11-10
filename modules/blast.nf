@@ -15,20 +15,17 @@ process SPLIT_FASTA {
     """
     mkdir -p chunks
 
-    # 1. Execução do script Python
     split_fasta.py \
         ${unclassified_fasta} \
         ${params.split_size} \
         chunks/${sample_id}_
 
-    # 2. Resgate seguro do summary.txt para a raiz do diretório do processo
     if [ -f chunks/${sample_id}_summary.txt ]; then
         mv chunks/${sample_id}_summary.txt ./${sample_id}_summary.txt
     else
         touch ./${sample_id}_summary.txt
     fi
 
-    # 3. Garante que exista pelo menos 1 chunk de FASTA para evitar canal vazio
     if ! ls chunks/${sample_id}_*.fasta 1> /dev/null 2>&1; then
         touch chunks/${sample_id}_01.fasta
     fi
@@ -64,13 +61,13 @@ process MERGE_AND_KRONA {
     tag "${sample_id}"
     label 'process_medium'
 
-    // p03_blast: fmt7, hit e o html do p03 (que no bash fica em _blast)
+    // p03_blast:
     publishDir "${params.out}/${sample_id}/${sample_id}_blast", mode: 'copy',
         saveAs: { fn ->
             fn.startsWith('blast_stage/') ? fn.tokenize('/').last() :
             (fn.endsWith('_blast_fmt7.txt') || fn.endsWith('_blast_hit.txt')) ? fn : null
         }
-    // p04_krona: html, report.csv, bacteria_report.csv, fRep/ e bRep/ (CSV/ e CSV2/ o bash apaga no tidyup)
+    // p04_krona:
     publishDir "${params.out}/${sample_id}/${sample_id}_tbl", mode: 'copy',
         saveAs: { fn ->
             (fn.startsWith('blast_stage/') || fn.startsWith("${sample_id}_CSV") ||
@@ -101,7 +98,7 @@ process MERGE_AND_KRONA {
 
     mkdir -p ${sample_id}_BLAST blast_stage ${sample_id}_CSV
 
-    # ---- p03_blast: junta os chunks (ordem alfabética, como o glob do bash) e extrai os hits
+    # ---- p03_blast:
     cat *_blast.txt > ${sample_id}_blast_fmt7.txt
 
     cat ${sample_id}_blast_fmt7.txt \
@@ -131,12 +128,10 @@ process MERGE_AND_KRONA {
         | sort -k 1nr,1 \
         > ${sample_id}_CSV/${sample_id}_merge_taxid.csv
 
-    # Nº de reads do R1 (coluna 4, linha 3 do log_p1), igual ao bash
     TR=\$(cat ${log_p1} | awk 'NR==3 {print \$4}' | tr -d ",")
 
-    # Validação de segurança
     if [ -z "\${TR}" ] || [ "\${TR}" -eq 0 ] 2>/dev/null; then
-        echo "[WARNING] Não foi possível ler o número total de reads do log. Usando TR=1."
+        echo "[WARNING] Could not read total reads count from log. Using TR=1."
         TR=1
     fi
 
