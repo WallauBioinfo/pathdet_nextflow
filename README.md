@@ -32,8 +32,8 @@ cd pathdet_nextflow
 You can create the Conda environment using the `environment.yml` file:
 
 ```bash
-conda env create -f environment.yml
-conda activate pathdet_env
+micromamba env create -f environment.yml
+micromamba activate pathdet_env
 ```
 
 ### Apache Spark & SparK.py
@@ -74,7 +74,7 @@ db/
 
 ```
 
----
+To prepare the database, follow section 2 of the following document: https://github.com/khoriba/PATHDET_long-read/blob/main/README.md
 
 ## 4. Input File Format (CSV)
 
