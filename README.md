@@ -33,7 +33,7 @@ You can create the Conda environment using the `environment.yml` file:
 
 ```bash
 micromamba env create -f env/env.yml
-micromamba activate pathdet_envg
+micromamba activate pathdet_env
 ```
 
 ### Apache Spark & SparK.py
