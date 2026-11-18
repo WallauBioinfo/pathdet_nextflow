@@ -65,7 +65,7 @@ workflow {
         .transpose()                                         // [sample_id, chunk]
         .toSortedList { a, b -> a[1].name <=> b[1].name }
         .flatMap { it }
-        .collate( params.blast_batch_chunks as int )
+        .collate( params.blast_batch_chunks )
         .map { group -> tuple( "batch_" + group[0][1].baseName, group.collect { it[1] } ) }
 
     RUN_BLASTN ( ch_blast_batches )
