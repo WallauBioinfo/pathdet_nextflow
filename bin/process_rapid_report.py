@@ -107,7 +107,7 @@ def main() -> None:
     # --- KK2/<id>_p2.kreport, _tax.kreport, _tax2.kreport
     p2_lines = kreport_to_p2(read_lines(args.kreport_path))
     write_lines(args.kk2_dir / f"{sid}_p2.kreport", p2_lines)
-    tax_lines = taxonkit_lineage(p2_to_tax_lines(p2_lines), 2)
+    tax_lines = taxonkit_lineage(p2_to_tax_lines(p2_lines), 2, args.threads)
     write_lines(args.kk2_dir / f"{sid}_tax.kreport", tax_lines)
     tax2_lines = tax_to_rpm_lines(tax_lines, rmda2)
     write_lines(args.kk2_dir / f"{sid}_tax2.kreport", tax2_lines)

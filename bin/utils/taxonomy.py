@@ -7,7 +7,7 @@ replicamos em Python as pipelines `awk | sort | paste | cut`.
 """
 
 import subprocess
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from awk_compat import (
     add_fraction_column,
@@ -45,9 +45,17 @@ def _run_taxonkit(args: Sequence[str], lines: Sequence[str]) -> List[str]:
     return out
 
 
-def taxonkit_lineage(lines: Sequence[str], taxid_column: int = 2) -> List[str]:
-    """taxonkit lineage -i N (acrescenta a linhagem como última coluna)."""
-    return _run_taxonkit(["lineage", "-i", str(taxid_column)], lines)
+def taxonkit_lineage(
+    lines: Sequence[str], taxid_column: int = 2, threads: Optional[int] = None
+) -> List[str]:
+    """taxonkit lineage [-j T] -i N (acrescenta a linhagem como última coluna).
+
+    threads=None keeps taxonkit's own default (it ignored --threads before).
+    """
+    args = ["lineage"]
+    if threads:
+        args += ["-j", str(threads)]
+    return _run_taxonkit([*args, "-i", str(taxid_column)], lines)
 
 
 def taxonkit_reformat(
