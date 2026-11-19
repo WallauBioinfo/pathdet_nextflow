@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
-"""
-Step p04 (BLAST tables): reproduces p04_krona.sh from
-<id>_merge_tax.csv (reads + lineage) and <id>_merge_tax2.csv (RPM + lineage).
-
-Generates, with the exact same names and contents as the bash script:
-  <id>_CSV2/<id>_{mf,rf}{K,P,F,G,S}.csv, _mBacteria*/_rBacteria*, _mVirus/_rVirus, _mFungi/_rFungi
-  <id>_fRep/<id>_f{K,P,F,G,S}.csv, _Virus.csv, _Fungi.csv
-  <id>_bRep/<id>_Bacteria_f{F,G,S}.csv
-  <id>_report.csv and <id>_bacteria_report.csv
-"""
-
 import argparse
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
-from awk_compat import awk_sum_second_column, read_lines, write_lines  # noqa: E402
-from diversity import head3, shannon_index, simpson_index  # noqa: E402
-from taxonomy import build_rank_table, with_header  # noqa: E402
+from awk_compat import awk_sum_second_column, read_lines, write_lines
+from diversity import head3, shannon_index, simpson_index
+from taxonomy import build_rank_table, with_header
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -93,10 +82,9 @@ def main() -> None:
     for directory in (args.csv2_dir, args.frep_dir, args.brep_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
-    raw = read_lines(args.merge_tax)      # bash: ${OUT}_merge_tax.csv
-    rpm = read_lines(args.merge_tax2)     # bash: ${OUT}_merge_tax2.csv
+    raw = read_lines(args.merge_tax)
+    rpm = read_lines(args.merge_tax2)
 
-    # --- all organisms: K (without empty name filtering), then P, F, G, S
     total = {}
     for rank in "kpfgs":
         rp, mp, final = build_rank_table(raw, rpm, rank, threads, rank != "k")
@@ -106,11 +94,9 @@ def main() -> None:
         write_lines(args.frep_dir / f"{sid}_f{upper}.csv", with_header(final))
         total[rank] = (mp, final)
 
-    # --- subsets via grep (substring in any column, same as bash)
     def subset(lines, word):
         return [line for line in lines if word in line]
 
-    # Bacterias: species, genus, family
     bacteria = {}
     raw_b, rpm_b = subset(raw, "Bacteria"), subset(rpm, "Bacteria")
     for rank in "sgf":
@@ -121,7 +107,6 @@ def main() -> None:
         write_lines(args.brep_dir / f"{sid}_Bacteria_f{upper}.csv", with_header(final))
         bacteria[rank] = (mp, final)
 
-    # Vírus and fungi: only species
     extras = {}
     for word, name in (("Virus", "Virus"), ("Fungi", "Fungi")):
         rp, mp, final = build_rank_table(

@@ -55,9 +55,21 @@ workflow {
 
     // 4. Module BLAST (p03_blast) and Krona (p04_krona)
     SPLIT_FASTA ( DEHOST_BLASTN.out.fasta )
-    ch_blast_chunks = SPLIT_FASTA.out.chunks.transpose()
-    RUN_BLASTN ( ch_blast_chunks )
-    ch_grouped_blast = RUN_BLASTN.out.blast_output.groupTuple()
+
+    ch_blast_batches = SPLIT_FASTA.out.chunks
+        .transpose()                                         // [sample_id, chunk]
+        .toSortedList { a, b -> a[1].name <=> b[1].name }
+        .flatMap { it }
+        .collate( params.blast_batch_chunks )
+        .map { group -> tuple( "batch_" + group[0][1].baseName, group.collect { it[1] } ) }
+
+    RUN_BLASTN ( ch_blast_batches )
+
+    // <sample_id>_<NN>_blast.txt  ->  [sample_id, [files...]]
+    ch_grouped_blast = RUN_BLASTN.out.blast_files
+        .flatten()
+        .map { f -> tuple( f.name.replaceFirst(/_\d+_blast\.txt$/, ''), f ) }
+        .groupTuple()
     MERGE_AND_KRONA ( ch_grouped_blast.join(QUALITY_CONTROL.out.log) )
 
     // 5. Mapping, Coverage, and Variant Calling (p05_map)

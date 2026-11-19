@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-fetch_genomes.py
-Replicates the reference genome search from p05_map.sh (fetch/get_fasta functions):
-for each of the top 3 TaxIDs (<id>_merge_taxid.csv), it first searches in the
-`reference/` table and, if not found, in the `all/` table (refseq_lineage_taxid_fasta.tsv).
-
-Outputs in <output_directory>:
-  MAP/REF.fasta and MAP/ref_list{1,2,3}.txt   (only if any genome was found)
-  ref_list{1,2,3}.txt in the root              (if no genome was found, like the bash script)
-  <sample_id>_log_p5.txt
-
-Usage: fetch_genomes.py <merge_taxid_csv> <ncbi_genome_dir> <output_directory> <sample_id>
-"""
-
 import gzip
 import re
 import shutil
@@ -23,7 +9,7 @@ from typing import List, Set
 
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
-from awk_compat import cut_field, read_lines  # noqa: E402
+from awk_compat import cut_field, read_lines
 
 
 class LineageTable:

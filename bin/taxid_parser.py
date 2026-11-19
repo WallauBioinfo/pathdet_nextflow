@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-taxid_parser.py
-
-Maps local reference genomes (assembly report + fna.gz file)
-based on the taxonomy tree (nodes.dmp) provided by NCBI.
-"""
-
 import sys
 import re
 from pathlib import Path

@@ -1,6 +1,5 @@
 process DEHOST_KRAKEN2 {
     tag "$sample_id"
-    label 'process_high'
 
     input:
     tuple val(sample_id), path(reads)
@@ -23,7 +22,6 @@ process DEHOST_KRAKEN2 {
 
 process DEHOST_BOWTIE2 {
     tag "$sample_id"
-    label 'process_high'
 
     input:
     tuple val(sample_id), path(reads)
@@ -47,7 +45,6 @@ process DEHOST_BOWTIE2 {
 
 process DEHOST_HISAT2 {
     tag "$sample_id"
-    label 'process_high'
 
     input:
     tuple val(sample_id), path(reads)
@@ -71,7 +68,6 @@ process DEHOST_HISAT2 {
 
 process DEHOST_BLASTN {
     tag "$sample_id"
-    label 'process_medium'
     publishDir "${params.out}/${sample_id}/${sample_id}_hgs", mode: 'copy'
 
     input:
@@ -87,7 +83,7 @@ process DEHOST_BLASTN {
     script:
     def read2_param = reads instanceof List && reads.size() > 1 ? "${reads[1]}" : ""
     """
-    seqkit fq2fa ${reads[0]} -o ${sample_id}_hgs.1.fasta
+    seqkit fq2fa -j ${task.cpus} ${reads[0]} -o ${sample_id}_hgs.1.fasta
 
     blastn \
         -db ${blast_host2_db} \
@@ -104,7 +100,7 @@ process DEHOST_BLASTN {
         > ${sample_id}_nohitID.txt
 
     if [ -s ${sample_id}_nohitID.txt ]; then
-        seqkit grep -n -w0 -f ${sample_id}_nohitID.txt -o ${sample_id}_nohit.fasta ${sample_id}_hgs.1.fasta
+        seqkit grep -j ${task.cpus} -n -w0 -f ${sample_id}_nohitID.txt -o ${sample_id}_nohit.fasta ${sample_id}_hgs.1.fasta
     else
         touch ${sample_id}_nohit.fasta
     fi
@@ -114,6 +110,6 @@ process DEHOST_BLASTN {
     cat ${log_p1} | sed -n '7,9p' >> ${sample_id}_log_p2.txt
     echo "" >> ${sample_id}_log_p2.txt
     echo "\$(date '+%y%m%d%H%M%S') ${sample_id} subtracted FQ/FA stats" >> ${sample_id}_log_p2.txt
-    seqkit stats ${reads[0]} ${read2_param} ${sample_id}_nohit.fasta >> ${sample_id}_log_p2.txt
+    seqkit stats -j ${task.cpus} ${reads[0]} ${read2_param} ${sample_id}_nohit.fasta >> ${sample_id}_log_p2.txt
     """
 }
