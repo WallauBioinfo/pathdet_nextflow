@@ -38,7 +38,6 @@ process ALIGN_AND_VARIANT_CALLING {
     path "MAP/REF.fasta.fai" , emit: ref_fai
 
     script:
-    // samtools -@ = extra threads; sort memory per thread follows the memory given to the task
     def sort_mem = "${Math.max(256, (task.memory.toMega() / (task.cpus * 2)) as int)}M"
     def heap     = "${Math.max(1, (task.memory.toGiga() * 0.8) as int)}g"
     """

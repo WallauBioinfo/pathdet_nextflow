@@ -34,12 +34,6 @@ process SPLIT_FASTA {
 process RUN_BLASTN {
     tag "${batch_id}"
 
-    // One blastn for a whole batch of chunks (all samples): the cost of searching a very
-    // large database (nt) is roughly one pass over it, almost independent of the number of
-    // reads. The result is split back so every chunk gets its own <chunk>_blast.txt, exactly
-    // as if it had been searched alone (see bin/blast_batch.py and tests/).
-    // cpus / memory come from nextflow.config (threads_RUN_BLASTN, mem_RUN_BLASTN).
-
     input:
     tuple val(batch_id), path(chunks)
 

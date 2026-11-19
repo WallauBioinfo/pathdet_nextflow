@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-Rapid Step: everything that the bash rapid() did after kraken2 and Krona.
-
-Generates, with the exact same names and contents as the bash script:
-  KK2/<id>_p2.kreport, <id>_tax.kreport, <id>_tax2.kreport
-  CSV/<id>_mp{K,P,F,G,S}.csv and <id>_rp{K,P,F,G,S}.csv
-  <id>_pRep/<id>_p{K,P,F,G,S}.csv
-  <id>_pre-report.csv and <id>_log_Rapid.txt
-"""
 
 import argparse
 import sys
@@ -17,10 +8,10 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent / "utils"))
 
-from awk_compat import bc_percent, read_lines, write_lines  # noqa: E402
-from diversity import head3, shannon_index, simpson_index  # noqa: E402
-from log_parser import calculate_pipeline_metrics, count_fastq_reads  # noqa: E402
-from taxonomy import (  # noqa: E402
+from awk_compat import bc_percent, read_lines, write_lines
+from diversity import head3, shannon_index, simpson_index
+from log_parser import calculate_pipeline_metrics, count_fastq_reads
+from taxonomy import (
     build_rank_table,
     kreport_to_p2,
     p2_to_tax_lines,
@@ -93,7 +84,6 @@ def main() -> None:
     rmda2 = metrics["total_quality_filtered_reads"]
     hg2 = metrics["total_non_human_reads"]
 
-    # --- Kraken2 counts and log_Rapid (first 2 lines)
     kraken_stamp = _timestamp()
     classified = count_fastq_reads(args.classified_fastq_path)
     unclassified = count_fastq_reads(args.unclassified_fastq_path)
@@ -104,7 +94,6 @@ def main() -> None:
         f"({bc_percent(unclassified, wca1)}%)\n"
     )
 
-    # --- KK2/<id>_p2.kreport, _tax.kreport, _tax2.kreport
     p2_lines = kreport_to_p2(read_lines(args.kreport_path))
     write_lines(args.kk2_dir / f"{sid}_p2.kreport", p2_lines)
     tax_lines = taxonkit_lineage(p2_to_tax_lines(p2_lines), 2, args.threads)
@@ -112,7 +101,6 @@ def main() -> None:
     tax2_lines = tax_to_rpm_lines(tax_lines, rmda2)
     write_lines(args.kk2_dir / f"{sid}_tax2.kreport", tax2_lines)
 
-    # --- CSV/ and pRep/ by rank (kingdom does not filter empty names)
     mp_by_rank, final_by_rank = {}, {}
     for rank in RANKS:
         rp, mp, final = build_rank_table(
@@ -124,7 +112,6 @@ def main() -> None:
         write_lines(args.output_directory / f"{sid}_p{upper}.csv", with_header(final))
         mp_by_rank[rank], final_by_rank[rank] = mp, final
 
-    # --- pre-report
     diversity = {
         "simpson": {r: simpson_index(mp_by_rank[r]) for r in "fgs"},
         "shannon": {r: shannon_index(mp_by_rank[r]) for r in "fgs"},
@@ -134,7 +121,6 @@ def main() -> None:
         _pre_report_text(sid, metrics, diversity, top3), encoding="utf-8"
     )
 
-    # --- log_Rapid
     log_text += f"{_timestamp()} PROMPT REPORT finished ({_elapsed()})\n"
     args.output_log_path.write_text(log_text, encoding="utf-8")
 

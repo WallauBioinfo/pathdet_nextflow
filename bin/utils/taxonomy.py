@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Processamento taxonómico idêntico ao do bash original.
-
-Em vez do ete3 (banco próprio, taxdump possivelmente diferente) chamamos o
-`taxonkit` — o mesmo binário e o mesmo taxdump ($TAXONKIT_DB) do bash — e
-replicamos em Python as pipelines `awk | sort | paste | cut`.
-"""
-
 import subprocess
 from typing import List, Optional, Sequence, Tuple
 
@@ -27,7 +20,6 @@ from awk_compat import (
 _ENC = {"encoding": "utf-8", "errors": "surrogateescape"}
 
 
-# ----------------------------------------------------------------------- taxonkit
 def _run_taxonkit(args: Sequence[str], lines: Sequence[str]) -> List[str]:
     if not lines:
         return []
@@ -48,10 +40,6 @@ def _run_taxonkit(args: Sequence[str], lines: Sequence[str]) -> List[str]:
 def taxonkit_lineage(
     lines: Sequence[str], taxid_column: int = 2, threads: Optional[int] = None
 ) -> List[str]:
-    """taxonkit lineage [-j T] -i N (acrescenta a linhagem como última coluna).
-
-    threads=None keeps taxonkit's own default (it ignored --threads before).
-    """
     args = ["lineage"]
     if threads:
         args += ["-j", str(threads)]
@@ -61,14 +49,12 @@ def taxonkit_lineage(
 def taxonkit_reformat(
     lines: Sequence[str], lineage_column: int, rank: str, threads: int
 ) -> List[str]:
-    """taxonkit reformat -j T -i N -f {rank}."""
     return _run_taxonkit(
         ["reformat", "-j", str(threads), "-i", str(lineage_column), "-f", "{%s}" % rank],
         lines,
     )
 
 
-# -------------------------------------------------- etapas comuns (Rapid e BLAST)
 def build_rank_table(
     raw_lines: Sequence[str],
     rpm_lines: Sequence[str],
@@ -76,14 +62,6 @@ def build_rank_table(
     threads: int,
     drop_empty_names: bool,
 ) -> Tuple[List[str], List[str], List[str]]:
-    """Devolve (rp, mp, final) de um rank, como no bash.
-
-    rp    = reads por nome        (`..._rp<RANK>.csv` / `..._rf<RANK>.csv`)
-    mp    = RPM por nome + RA     (`..._mp<RANK>.csv` / `..._mf<RANK>.csv`)
-    final = paste rp mp | cut -f 1,2,4,5   (corpo de `_p<RANK>.csv` / `_f<RANK>.csv`)
-
-    `drop_empty_names=False` só no kingdom (o bash não aplica o grep -v '^\\s' aí).
-    """
     mp = _sorted_rank_lines(rpm_lines, rank, threads, drop_empty_names)
     mp = add_fraction_column(mp)
     rp = _sorted_rank_lines(raw_lines, rank, threads, drop_empty_names)
@@ -105,9 +83,7 @@ def with_header(body: Sequence[str]) -> List[str]:
     return ["Microorganisms,reads,RPM,RA", *body]
 
 
-# ----------------------------------------------------------------- só o Rapid
 def kreport_to_p2(kreport_lines: Sequence[str]) -> List[str]:
-    """grep -v 'unclassified' | cut -f 3,5 | awk -F, '$1 > 1'."""
     out = []
     for line in kreport_lines:
         if "unclassified" in line:
@@ -119,14 +95,12 @@ def kreport_to_p2(kreport_lines: Sequence[str]) -> List[str]:
 
 
 def p2_to_tax_lines(p2_lines: Sequence[str]) -> List[str]:
-    """awk soma por taxid | sort -k 1nr,1  ->  'reads<TAB>taxid'."""
     totals = awk_sum_by_key(p2_lines)
     rows = [f"{awk_num(total)}\t{taxid}" for taxid, total in totals.items()]
     return sort_numeric_desc(rows, 1)
 
 
 def tax_to_rpm_lines(tax_lines: Sequence[str], total_reads: int) -> List[str]:
-    """awk '{print $1/r*1000000"\\t"$0}' | cut -f 1,3-  ->  'RPM<TAB>taxid<TAB>linhagem'."""
     out = []
     for line in tax_lines:
         fields = awk_fields(line)

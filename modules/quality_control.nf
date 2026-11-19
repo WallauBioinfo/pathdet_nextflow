@@ -17,8 +17,6 @@ process QUALITY_CONTROL {
     tuple val(sample_id), path('*_fp.html'),                         emit: fhtml
 
     script:
-
-    // fastp accepts at most 16 workers; bbduk heap follows the memory given to the task
     def fastp_threads = Math.min(task.cpus as int, 16)
     def bbduk_heap    = "${Math.max(1, (task.memory.toGiga() * 0.8) as int)}g"
 
