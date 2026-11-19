@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 SEPARATOR = "__"
+DESCRIPTION = 'Run one blastn for many FASTA chunks and split the result back per chunk.'
 _QUERY_PREFIX = "# Query: "
 _BLOCK_START = re.compile(r"^# [A-Z]*BLAST[A-Z]* \d")
 _FOOTER = re.compile(r"^# BLAST processed \d+ queries")
@@ -117,7 +118,7 @@ def split(blast_path: Path, manifest_path: Path, outdir: Path) -> Dict[str, int]
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_concat = sub.add_parser("concat", help="concatenate chunks with prefixed read IDs")
