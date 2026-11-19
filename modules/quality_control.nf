@@ -17,8 +17,8 @@ process QUALITY_CONTROL {
     tuple val(sample_id), path('*_fp.html'),                         emit: fhtml
 
     script:
-
-    def bbduk_threads = task.cpus < 2 ? 2 : task.cpus
+    def fastp_threads = Math.min(task.cpus as int, 16)
+    def bbduk_heap    = "${Math.max(1, (task.memory.toGiga() * 0.8) as int)}g"
 
     """
     START1=\$(date '+%y%m%d%H%M%S')
@@ -38,10 +38,10 @@ process QUALITY_CONTROL {
           -f ${params.fastp_trim_front1} \\
           -t ${params.fastp_trim_tail1} \\
           -T ${params.fastp_trim_tail2} \\
-          -w ${task.cpus}
+          -w ${fastp_threads}
 
     bbduk.sh \\
-	  -Xmx8g \\
+          -Xmx${bbduk_heap} \\
           in=${sample_id}_trimmed_R1.fastq.gz \\
           in2=${sample_id}_trimmed_R2.fastq.gz \\
           out=${sample_id}_trimmed2_R1.fastq.gz \\
@@ -49,7 +49,7 @@ process QUALITY_CONTROL {
           entropy=${params.bbduk_entropy} \\
           entropywindow=${params.bbduk_entropywindow} \\
           entropyk=${params.bbduk_entropyk} \\
-          threads=${bbduk_threads} \\
+          threads=${task.cpus} \\
           unpigz=t
     
     QC=\$(date '+%y%m%d%H%M%S')

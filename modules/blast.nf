@@ -1,6 +1,5 @@
 process SPLIT_FASTA {
     tag "${sample_id}"
-    label 'process_low'
 
     publishDir "${params.out}/${sample_id}/${sample_id}_blast", mode: 'copy', pattern: "*_summary.txt"
 
@@ -33,33 +32,44 @@ process SPLIT_FASTA {
 }
 
 process RUN_BLASTN {
-    tag "${sample_id} - ${fasta_chunk.simpleName}"
-    label 'process_high'
-    cpus params.blast_threads
+    tag "${batch_id}"
 
     input:
-    tuple val(sample_id), path(fasta_chunk)
+    tuple val(batch_id), path(chunks)
 
     output:
-    tuple val(sample_id), path("${fasta_chunk.baseName}_blast.txt"), emit: blast_output
+    path "split/*_blast.txt", emit: blast_files
 
     script:
     """
-    blastn \
-        -db ${params.blast_nt} \
-        -query ${fasta_chunk} \
-        -out ${fasta_chunk.baseName}_blast.txt \
-        -evalue 1.0e-10 \
-        -max_target_seqs 1 \
-        -max_hsps 5 \
-        -outfmt "7 std" \
-        -num_threads ${task.cpus}
+    blast_batch.py concat \\
+        --fasta ${batch_id}.fasta \\
+        --manifest ${batch_id}.manifest.tsv \\
+        ${chunks}
+
+    if [ -s ${batch_id}.fasta ]; then
+        blastn \\
+            -db ${params.blast_nt} \\
+            -query ${batch_id}.fasta \\
+            -out ${batch_id}_blast.txt \\
+            -evalue 1.0e-10 \\
+            -max_target_seqs 1 \\
+            -max_hsps 5 \\
+            -outfmt "7 std" \\
+            -num_threads ${task.cpus}
+    else
+        touch ${batch_id}_blast.txt
+    fi
+
+    blast_batch.py split \\
+        --blast ${batch_id}_blast.txt \\
+        --manifest ${batch_id}.manifest.tsv \\
+        --outdir split
     """
 }
 
 process MERGE_AND_KRONA {
     tag "${sample_id}"
-    label 'process_medium'
 
     // p03_blast:
     publishDir "${params.out}/${sample_id}/${sample_id}_blast", mode: 'copy',
@@ -135,7 +145,7 @@ process MERGE_AND_KRONA {
         TR=1
     fi
 
-    taxonkit lineage -i 2 ${sample_id}_CSV/${sample_id}_merge.csv > ${sample_id}_CSV/${sample_id}_merge_tax.csv
+    taxonkit lineage -j ${task.cpus} -i 2 ${sample_id}_CSV/${sample_id}_merge.csv > ${sample_id}_CSV/${sample_id}_merge_tax.csv
 
     cat ${sample_id}_CSV/${sample_id}_merge_tax.csv \
         | awk -v "r=\${TR}" '{print \$1/r*1000000"\\t"\$0}' \
@@ -159,7 +169,6 @@ process MERGE_AND_KRONA {
 
 process PARSE_TAXID_GENOMES {
     tag "${sample_id}"
-    label 'process_low'
 
     publishDir "${params.out}/${sample_id}/${sample_id}_blast", mode: 'copy'
 
